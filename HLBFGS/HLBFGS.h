@@ -16,7 +16,9 @@
 // xueyuhanlang@gmail.com                                                    //
 //                                                                           //
 // HLBFGS is HLBFGS is freely available for non-commercial purposes.		 //
-//                                                                           //
+//                    														 //
+// Maintainer: Huanhuan Yang. huan2yang@outlook.com							 //
+//			   Customize the stopping criteria, mpi handeling, and resetting //
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifndef HLBFGS_H

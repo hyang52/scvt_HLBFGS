@@ -1,5 +1,5 @@
 About:
-	SCVT-HLBFGS is a Parallel SCVT Generator written in C++, using the Limited-memory BFGS for optimization.
+	scvt_HLBFGS is a Parallel SCVT Generator written in C++, using Lloyd-preconditioned limited-memory BFGS for optimization.
 	It makes use of boost's mpi and serialization libraries.
 	It was written by Huanhuan Yang, while the Overlapping domain decomposition method for parallelization in 
 	scvt computation is following the scvt-mpi (Lloyd method) program by Doug Jacobsen and Geoff Womeldorff
@@ -28,8 +28,10 @@ Running:
 	Where P is replaced with the number of processors used. The number of Processors has to be either
 	1 or the number of points in RegionList as described below.
 
-	run: ./partition_gen -p 16 
+	run: ./partition_gen.exe -p 16 
 		 to create the partition map that will be used for 16 processors
+	run: ./num_estimate.exe 
+		 to estimate the necessary num of points given max_h and min_h resolution in dataFiel "parameters"
 
 Refinement ex: 12 42 162 642 2562 10242 40,962 163,842 655,362 2,621,442	---	 num_pts after refinement
 
