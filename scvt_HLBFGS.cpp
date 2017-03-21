@@ -7,7 +7,7 @@
  *  The Overlapping domain decomposition method for parallelization is following
  *  the scvt-mpi (Lloyd method) program by Doug Jacobsen and Geoff Womeldorff
  *
- *	This program is using global vector for storing all the points, 
+ *	This program is using non-overlapping local vector for storing points, 
  *  as compared with another version which use disjointly distributed vector for updating points during optimization
  */
 
