@@ -1,8 +1,12 @@
 CC = mpic++
 BDIR = /lustre/home-2/hyang3/workdir/boost
-LIBS = -I${BDIR}/include/ -L${BDIR}/lib/ -lboost_mpi -lboost_serialization
+LIBS = -I${BDIR}/include/ -L${BDIR}/lib/ -lboost_mpi -lboost_serialization				# config on the spear cluster
 #OptizelleDIR = /lustre/home-2/hyang3/workdir/Optizelle/install_release
 #LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
+
+#LIBS =  -lboost_mpi -lboost_serialization												# config on laptop
+##OptizelleDIR = /home/huanhuan/Packages/Optizelle-1.1.2/install-release
+##LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
 
 ifeq ($(NETCDF),yes)
 NCDFDIR = /lustre/home-2/hyang3/share/third-party/netcdf-install

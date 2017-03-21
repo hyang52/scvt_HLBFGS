@@ -45,7 +45,7 @@ void INIT_HLBFGS(double PARAMETERS[], int INFO[])
 	INFO[0] = 20; //max_fev_in_linesearch
 	INFO[1] = 0; //total_num_fev
 	INFO[2] = 0; //iter
-	INFO[3] = 0; //update strategy. 0: standard lbfgs, 1: m1qn3;
+	INFO[3] = 0; //update strategy. 0: standard lbfgs, 1: m1qn3, 2: Lloyd precondition
 	INFO[4] = 100000; // max iterations
 	INFO[5] = 1; //1: print message, 0: do nothing
 	INFO[6] = 10; // T: update interval of Hessian
@@ -394,7 +394,6 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			{
 				s[start + i] = x[i] - prev_x[i];
 				y[start + i] = g[i] - prev_g[i];
-				//std::cout<<"  y[start + i]="<<y[start + i]<<std::endl;
 			}
 			rho[cur_pos] = 1.0 / HLBFGS_DDOT(N, &y[start], &s[start]);
 			if (INFO[13] == 1)
@@ -517,9 +516,9 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			}
 		}
 
-		if (INFO[2] == 0 && num_reset > 0 && f > prev_f )
+		if (INFO[2] == 0 && num_reset > 0 && f >= prev_f )
 		{
-			std::cout << "Convergence: cannot improve anymore!\n"<< std::endl;
+			if(WORLD->rank()==0)	std::cout << "Convergence: cannot improve anymore!\n"<< std::endl;
 			return;
 		}
 		if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q) >= 0.)
@@ -600,12 +599,11 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		}
 		if (info != 1 || stp < stpmin || stp > stpmax)
 		{
-			std::cout << "\n info from LS:" << info << std::endl;
 			HLBFGS_MESSAGE(INFO[5] != 0, 4, PARAMETERS, &(*WORLD));
 
 			if(num_reset < INFO[14]){
 				// if fail in line search, reset LBFGS
-				std::cout << "--------------Reseting HLBFGS: let itr=0, num_fev=0 -----------------\n";
+				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0, num_fev=0 -----------------\n";
 				cur_pos = 0;
 				INFO[2] = 0;
 				prev_f = f;
@@ -624,7 +622,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 
 			if(num_reset < INFO[14]){
 				// if reach max_itr, reset LBFGS
-				std::cout << "--------------Reseting HLBFGS: let itr=0, num_fev=0 -----------------\n";
+				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0, num_fev=0 -----------------\n";
 				cur_pos = 0;
 				INFO[2] = 0;
 				prev_f = f;

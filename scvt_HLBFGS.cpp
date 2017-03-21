@@ -45,7 +45,6 @@ vector<region> regions;
 vector<region> my_regions;
 vector<pnt> points;
 vector<pnt> n_points;
-vector<pnt> nn_points;
 vector<double> bots;
 Quadrature quadr;
 char * flags;
@@ -65,52 +64,75 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	pnt p;
 	vector<pnt>	distr_grad;
 	vector<pnt> gradients;
-	vector<double> my_bots;
+	vector<pnt> distr_nPoints;
+	vector<double> my_bots, glob_bots;
 	my_bots.resize(points.size()*2);
 
 	clearRegions(id, my_regions);
 	for(int i=0; i<N/2; ++i)
 	{
 		x[2*i] = fmod(x[2*i],M_PI);
-		if(x[2*i]>M_PI/2.0 )	x[2*i] -= M_PI;
-		if(x[2*i]<-M_PI/2.0 )	x[2*i] += M_PI;
+		if(x[2*i]>M_PI/2.0)	x[2*i] -= M_PI;
+		if(x[2*i]<-M_PI/2.0)	x[2*i] += M_PI;
 		p = pntFromLatLon(x[2*i],x[2*i+1]);
 		p.idx = i;
 		points[i]=p;
 	}
+
 	sortPoints(id, regions, points, sort_method, my_regions);
 	triangulateRegions(id, flags, my_regions);
-	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy, distr_grad, &my_bots[0]);
-//	inteEnergy(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy);
+	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy, distr_grad, distr_nPoints, &my_bots[0]);
 	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
 	mpi::broadcast(world, *f, 0);
 	if(id==0)	cout << "\n f ="<< *f <<endl;
-//	inteGradient(id, div_levs, quadr, use_barycenter, regions, my_regions, points, distr_grad);
 	gradients.resize(points.size());
 	gatherAllUpdatedPoints(world, distr_grad, gradients);
+	n_points.resize(points.size());
+	gatherAllUpdatedPoints(world, distr_nPoints, n_points);
 
-	bots.resize(points.size()*2);
-	mpi::reduce(world, &my_bots[0], points.size()*2, &bots[0], mpi::maximum<double>(), 0);
-	mpi::broadcast(world, &bots[0], points.size()*2, 0);
+	glob_bots.resize(points.size());
+	mpi::reduce(world, &my_bots[0], points.size(), &glob_bots[0], mpi::maximum<double>(), 0);
+	mpi::broadcast(world, &glob_bots[0], points.size(), 0);
 	for(int j=0; j<points.size(); ++j){
-		bots[2*j+1] *= 1-points[j].z*points[j].z + 1e-100;  // add safe-guard in case z=1
+		bots[2*j] = glob_bots[j];
+		bots[2*j+1] = glob_bots[j] * (1-points[j].z*points[j].z + 1e-100);  // add safe-guard in case z=1
 	}
 
 	double lat, lon;
 	for(int i=0; i<points.size(); ++i){
-		lat = -1.0*gradients[i].x*points[i].z*points[i].x/sqrt(1-points[i].z*points[i].z+1e-100)
-				-gradients[i].y*points[i].z*points[i].y/sqrt(1-points[i].z*points[i].z+1e-100)
-				+gradients[i].z*sqrt(1-points[i].z*points[i].z);
+		//lat = -1.0*gradients[i].x*x_points[i].z*x_points[i].x/sqrt(1-x_points[i].z*x_points[i].z)
+		//		-gradients[i].y*x_points[i].z*x_points[i].y/sqrt(1-x_points[i].z*x_points[i].z)
+		//		+gradients[i].z*sqrt(1-x_points[i].z*x_points[i].z);
+		lat = -1.0*gradients[i].x*sin(x[2*i])*cos(x[2*i+1])
+				-gradients[i].y*sin(x[2*i])*sin(x[2*i+1])
+				+gradients[i].z*cos(x[2*i]);
 		lon = -1.0*gradients[i].x*points[i].y + gradients[i].y*points[i].x;
 
 		g[2*i] = lat;
 		g[2*i+1] = lon;
-		//cout<<"\n Grad lat lon = "<<lat<<" "<<lon<< endl;
+	}
+}
+
+
+void checkGrad(int N, double* x, double *prev_x, double* f, double* g) 
+{
+	double h=1e-8, f1, f2;
+	double tmp[N];
+
+	for(int i=0; i<N/2; ++i)
+	{
+		evalfunc(N, x, 0, &f1, tmp);
+		x[2*i] = x[2*i]+h;		
+		evalfunc(N, x, 0, &f2, tmp);
+		x[2*i] = x[2*i]-h;		
+		g[2*i] = (f2 - f1)/h;
+	
+		x[2*i+1] = x[2*i+1]+h;
+		evalfunc(N, x, 0, &f2, tmp);
+		x[2*i+1] = x[2*i+1]-h;
+		g[2*i+1] = (f2 - f1)/h;
 	}
 
-	integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
-	nn_points.resize(points.size());
-	gatherAllUpdatedPoints(world, n_points, nn_points);
 }
 
 
@@ -150,8 +172,8 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
 	{
 		for(int j=0; j<N/2; ++j)
 		{
-			q[2*j] = nn_points[j].getLat() - points[j].getLat();
-			q[2*j+1] = nn_points[j].getLon() - points[j].getLon();
+			q[2*j] = n_points[j].getLat() - points[j].getLat();
+			q[2*j+1] = n_points[j].getLon() - points[j].getLon();
 		}
 	
 	}
@@ -212,7 +234,7 @@ int main(int argc, char **argv){
 	strcpy(flags,flags_str.c_str());
 
 	// constant parameters for HLBFGS, reading from dataFile
-	double Lloyd_tol = dataFile("HLBFGS/Lloyd_tol", 1.0);
+	double Lloyd_tol = dataFile("HLBFGS/real_tol/Lloyd_tol", 1.0);
 	int mem_num = dataFile("HLBFGS/memory_number", 7);
 	double parameter[10];
 	int info[15];
@@ -304,6 +326,7 @@ int main(int argc, char **argv){
 		/////////////////////////////////////////////////////
 			// Lloyd iteration as starting up
 		it = 0;
+		bool stop = false;
 		do{
 			clearRegions(id, my_regions);
 			sortPoints(id, regions, points, sort_method, my_regions);
@@ -327,9 +350,14 @@ int main(int argc, char **argv){
 			//mpi::broadcast(world, glob_l1, 0);
 			if(id==0) cout << "Initial Lloyd itr "<< ++it <<": dx_l2 = "<< glob_l2 << endl;
 
-			gatherAllUpdatedPoints(world, n_points, points);
+			if(glob_l2 > Lloyd_tol){ 
+				transferUpdatedPoints(world, my_regions, n_points, points);
+			}else{
+				gatherAllUpdatedPoints(world, n_points, points);
+				stop = true;
+			}
 
-		}while(glob_l2 > Lloyd_tol);
+		}while(!stop);
 
 		/////////////////////////////////////////////////////
 		// Quasi-Newton iteration when dx <= Lloyd_tol
@@ -339,6 +367,23 @@ int main(int argc, char **argv){
 			x[2*i] = points[i].getLat();
 			x[2*i+1] = points[i].getLon();
 		}
+
+/*		//check gradient
+		double f;
+		double g1[x.size()];
+		double g2[x.size()];
+		evalfunc(x.size(), &x[0], 0, &f, g1);
+		checkGrad(x.size(), &x[0], 0, &f, g2);
+		if(id==0)	cout<<"\n grad =\n ";
+		for(i=0; i<x.size(); ++i)
+			if(id==0)	cout<<g1[i]<<" ";
+		if(id==0)	cout<<"\n\n check FD grad =\n ";
+		for(i=0; i<x.size(); ++i)
+			if(id==0)	cout<<g2[i]<<" ";
+		if(id==0)	cout<<"\n\n check error grad =\n ";
+		for(i=0; i<x.size(); ++i)
+			if(id==0)	cout<<g1[i]-g2[i]<<" ";
+*/
 		bots.resize(points.size()*2);																						
 		if(id==0)
 			cout << "\n itr(Quasi-Newton): num_feval |  f_val  |  g_norm  |\n"<< endl;
@@ -392,22 +437,6 @@ int main(int argc, char **argv){
 	}
 	global_timers[0].stop();
 
-	//Compute average points per region for diagnostics
-	num_avePoints = 0;
-	num_myPoints = 0;
-	clearRegions(id, my_regions);
-	sortPoints(id, regions, points, sort_method, my_regions);
-	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-		num_myPoints += (*region_itr).points.size();
-	}
-
-	mpi::reduce(world, num_myPoints, num_avePoints, std::plus<int>(), 0);
-	num_avePoints = num_avePoints / regions.size();
-	if(id == 0){
-		cout << "\nAverage points per region: " << num_avePoints << endl;
-	}
-
-
 	// Compute final triangulation by merging all triangulations from each processor into an
 	// unordered_set, and then ordering them ccw before printing them out.
 	// write triangles to triangles.dat
@@ -416,6 +445,19 @@ int main(int argc, char **argv){
 	sortPoints(id, regions, points, sort_vor, my_regions);
 	makeFinalTriangulations(id, flags, regions, my_regions);
 	global_timers[2].stop();
+
+	//Compute average points per region for diagnostics
+	num_avePoints = 0;
+	num_myPoints = 0;
+	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+		num_myPoints += (*region_itr).points.size();
+	}
+	mpi::reduce(world, num_myPoints, num_avePoints, std::plus<int>(), 0);
+	num_avePoints = num_avePoints / regions.size();
+	if(id == 0){
+		cout << "\nAverage points per region: " << num_avePoints << endl;
+	}
+
 
 	printMyFinalTriangulation(world, my_regions, all_triangles);
 

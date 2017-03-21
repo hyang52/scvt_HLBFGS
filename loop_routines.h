@@ -1542,6 +1542,7 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 	int a_min_region, b_min_region, c_min_region;
 	double energ_val;
 	int i;
+	int sign;
 	vector<region>::iterator region_itr;
 	vector<tri>::iterator tri_itr;
 	vector<pnt>::const_iterator point_itr;
@@ -1622,28 +1623,34 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 				if(a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region)){
 					//Triangle 1 - a ab ccenter
 					divideIntegEnerg(div_levs,quadr,a,a,ab,ccenter,energ_val);
-					energs[a.idx] += energ_val*isCcw(a,ab,ccenter);
+					sign = isCcw(a,ab,ccenter);
+					energs[a.idx] += energ_val*sign;
 					//Triangle 2 - a ccenter ca
 					divideIntegEnerg(div_levs,quadr,a,a,ccenter,ca,energ_val);
-					energs[a.idx] += energ_val*isCcw(a,ccenter,ca);
+					sign = isCcw(a,ccenter,ca);
+					energs[a.idx] += energ_val*sign;
 				} 
 
 				if(b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region)){
 					//Triangle 1 - b bc ccenter
 					divideIntegEnerg(div_levs,quadr,b,b,bc,ccenter,energ_val);
-					energs[b.idx] += energ_val*isCcw(b,bc,ccenter);
+					sign = isCcw(b,bc,ccenter);
+					energs[b.idx] += energ_val*sign;
 					//Triangle 2 - b ccenter ab
 					divideIntegEnerg(div_levs,quadr,b,b,ccenter,ab,energ_val);
-					energs[b.idx] += energ_val*isCcw(b,ccenter,ab);
+					sign = isCcw(b,ccenter,ab);
+					energs[b.idx] += energ_val*sign;
 				}
 
 				if(c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region)){
 					//Triangle 1 - c ca ccenter
 					divideIntegEnerg(div_levs,quadr,c,c,ca,ccenter,energ_val);
-					energs[c.idx] += energ_val*isCcw(c,ca,ccenter);
+					sign = isCcw(c,ca,ccenter);
+					energs[c.idx] += energ_val*sign;
 					//Triangle 2 - c ccenter bc
 					divideIntegEnerg(div_levs,quadr,c,c,ccenter,bc,energ_val);
-					energs[c.idx] += energ_val*isCcw(c,ccenter,bc);
+					sign = isCcw(c,ccenter,bc);
+					energs[c.idx] += energ_val*sign;
 				} 
 			}
 		}
@@ -1666,7 +1673,8 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 
 
 
-void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter, vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points, double& my_energy, vector<pnt>& distr_grad, double* my_bots){/*{{{*/
+
+void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter, vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points, double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_nPoints, double* my_bots){/*{{{*/
 	// Integrate Voronoi cells inside of my region
 	// Every region updates all points that are closer to their region center than any other region center.
 	// This ensures that each point is only updated once.
@@ -1677,7 +1685,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	pnt a, b, c;
 	pnt ab, bc, ca;
 	pnt ccenter;
-	pnt grad_i;
+	pnt grad_i, pnt_i;
 	double dist_temp;
 	double a_dist_to_region, a_min_dist;
 	double b_dist_to_region, b_min_dist;
@@ -1813,9 +1821,9 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	}
 
 	distr_grad.clear();
+	distr_nPoints.clear();
 	for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-		my_bots[(*point_itr).idx*2] = bots[(*point_itr).idx];
-		my_bots[(*point_itr).idx*2+1] = bots[(*point_itr).idx];
+		my_bots[(*point_itr).idx] = bots[(*point_itr).idx];
 		// Ignoring boundary conditions at this moment
 		my_energy += energs[(*point_itr).idx];
 		if(!(*point_itr).isBdry){
@@ -1823,6 +1831,11 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 				grad_i = 2.0*(*point_itr)*bots[(*point_itr).idx] - 2.0*tops[(*point_itr).idx];
 				grad_i.idx = (*point_itr).idx;
 				distr_grad.push_back(grad_i);
+
+				pnt_i = tops[(*point_itr).idx] / bots[(*point_itr).idx];
+				pnt_i.normalize();
+				pnt_i.idx = (*point_itr).idx;
+				distr_nPoints.push_back(pnt_i);
 			}
 		} else if((*point_itr).isBdry){
 			/*if((*point_itr).isBdry == 2){
