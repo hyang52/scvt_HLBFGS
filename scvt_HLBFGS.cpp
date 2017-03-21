@@ -66,7 +66,8 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	vector<pnt> gradients;
 	vector<pnt> distr_nPoints;
 	vector<double> my_bots, glob_bots;
-	my_bots.resize(points.size()*2);
+	my_bots.resize(N/2);
+	glob_bots.resize(N/2);
 
 	clearRegions(id, my_regions);
 	for(int i=0; i<N/2; ++i)
@@ -85,21 +86,21 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
 	mpi::broadcast(world, *f, 0);
 	if(id==0)	cout << "\n f ="<< *f <<endl;
-	gradients.resize(points.size());
+	gradients.resize(N/2);
 	gatherAllUpdatedPoints(world, distr_grad, gradients);
-	n_points.resize(points.size());
+	n_points.resize(N/2);
 	gatherAllUpdatedPoints(world, distr_nPoints, n_points);
 
-	glob_bots.resize(points.size());
-	mpi::reduce(world, &my_bots[0], points.size(), &glob_bots[0], mpi::maximum<double>(), 0);
-	mpi::broadcast(world, &glob_bots[0], points.size(), 0);
-	for(int j=0; j<points.size(); ++j){
+	mpi::reduce(world, &my_bots[0], N/2, &glob_bots[0], mpi::maximum<double>(), 0);
+	mpi::broadcast(world, &glob_bots[0], N/2, 0);
+	bots.resize(N);
+	for(int j=0; j<N/2; ++j){
 		bots[2*j] = glob_bots[j];
 		bots[2*j+1] = glob_bots[j] * (1-points[j].z*points[j].z + 1e-100);  // add safe-guard in case z=1
 	}
 
 	double lat, lon;
-	for(int i=0; i<points.size(); ++i){
+	for(int i=0; i<N/2; ++i){
 		//lat = -1.0*gradients[i].x*x_points[i].z*x_points[i].x/sqrt(1-x_points[i].z*x_points[i].z)
 		//		-gradients[i].y*x_points[i].z*x_points[i].y/sqrt(1-x_points[i].z*x_points[i].z)
 		//		+gradients[i].z*sqrt(1-x_points[i].z*x_points[i].z);
@@ -384,7 +385,6 @@ int main(int argc, char **argv){
 		for(i=0; i<x.size(); ++i)
 			if(id==0)	cout<<g1[i]-g2[i]<<" ";
 */
-		bots.resize(points.size()*2);																						
 		if(id==0)
 			cout << "\n itr(Quasi-Newton): num_feval |  f_val  |  g_norm  |\n"<< endl;
 
