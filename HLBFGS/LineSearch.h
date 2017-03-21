@@ -21,7 +21,7 @@ MCSRCH is modified a little for Preconditioned CG.
 int MCSRCH(int *n, double *x, double *f, double *g, double *s, double *stp,
 		   double *ftol, double *gtol, double *xtol, double *stpmin,
 		   double * stpmax, int *maxfev, int *info, int *nfev, double *wa,
-		   int *keep, double *rkeep, double *cg_dginit = 0);
+		   int *keep, double *rkeep, double *cg_dginit = 0, mpi::communicator* world=0);
 
 //!   MCSTEP ROUTINE
 /*!

@@ -2,7 +2,7 @@
  * setup_routines.h
  *
  *  Created on: Jan 13, 2017
- *      Author: Huanhuan Yang	huan2yang@outlook.com
+ *  Author: Huanhuan Yang	huan2yang@outlook.com
  *
  *  This file inherits and reshapes some data structures from 
  *  the scvt-mpi (Lloyd method) program by Doug Jacobsen and Geoff Womeldorff
@@ -386,6 +386,8 @@ int buildRegions(const int id, vector<region>& regions, const string regList="Re
 }/*}}}*/
 
 
+
+/* ***** Generic Region Routines ***** {{{ */
 void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points, int sort_type, vector<region> &region_vec){/*{{{*/
 	//Sort points into my region(s).
 	//This is done using a dot product and checking if the dot product is inside of the region radius
@@ -507,12 +509,6 @@ void sortBoundaryPoints(const int id, vector<region>& regions, vector<pnt>& boun
 #endif
 	return;
 }/*}}}*/
-
-
-
-/* }}} */
-
-
 
 
 #endif /* SETUP_ROUTINES_H_ */

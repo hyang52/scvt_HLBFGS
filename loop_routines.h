@@ -2,7 +2,7 @@
  * loop_routines.h
  *
  *  Created on: Jan 13, 2017
- *      Author: Huanhuan Yang	huan2yang@outlook.com
+ *   Author: Huanhuan Yang	huan2yang@outlook.com
  *
  *  This file play the key role in scvt computation: Lloyd step, energy function, gradient.  
  *  It contains some data structures from 
@@ -467,7 +467,74 @@ void Quadrature::integTopBot_19P(const pnt &A, const pnt &B, const pnt &C, pnt &
 
 
 
+////No bug in this function. Was using area = sign*4.0*atan(tanqe) in triArea()
+//void divideIntegrate(const int levs, const Quadrature& quadr, const pnt &A, const pnt &B, const pnt &C, pnt &Top, double &bot){/*{{{*/
+	//divideIntegrate integrates a triangle, with an arbitrary number of subdivisions.
+	//Each subdivision produces 4 triangles from 1 triangle.
+	//Master triangle vertices are A, B, C.
+	//Number of divisions is levs
+	//Top and bot are returned, being the top and bottom of the centroid calculation.
+/*	pnt z1, z2, z3;
+	pnt temp;
+	double xlam, ylam, ylam2, ylam3, zlam;
+	double dt, bot_temp;
+	double area;
+	int zn, xn;
+	int i, j;
 
+	Top = pnt(0.0,0.0,0.0);
+	bot = 0.0;
+
+	zn = (1 << levs);
+	dt = 1.0/zn;
+
+	for(i = 0; i < zn; i++){
+		xn = zn-i;
+		zlam = i*dt;
+		for(j = 0; j < xn-1; j++){
+			xlam = 1.0 - i*dt - j*dt;
+			ylam = 1.0 - (xlam + zlam);
+			z1 =     xlam    * A +    ylam     * B +    zlam     * C;
+			z2 = (xlam - dt) * A + (ylam + dt) * B +    zlam     * C;
+			z3 = (xlam - dt) * A +    ylam     * B + (zlam + dt) * C;
+			z1.normalize();
+			z2.normalize();
+			z3.normalize();
+
+			quadr.integTopBot(z1,z2,z3,temp,bot_temp);
+			area = triArea(z1,z2,z3);
+			Top += temp*area;
+			bot += bot_temp*area;
+
+			z1 =   (xlam - dt)   * A +     ylam    * B + (zlam + dt) * C;
+			z2 =   (xlam - dt)   * A + (ylam + dt) * B +    zlam     * C;
+			z3 = (xlam - 2.0*dt) * A + (ylam + dt) * B + (zlam + dt) * C;
+			z1.normalize();
+			z2.normalize();
+			z3.normalize();
+
+			quadr.integTopBot(z1,z2,z3,temp,bot_temp);
+			area = triArea(z1,z2,z3);
+			Top += temp * area;
+			bot += bot_temp*area;
+		}
+
+		xlam = dt;
+		ylam = 1.0 - (xlam + zlam);
+
+		z1 =    xlam     * A +    ylam     * B +    zlam     * C;
+		z2 = (xlam - dt) * A + (ylam + dt) * B +    zlam     * C;
+		z3 = (xlam - dt) * A +    ylam     * B + (zlam + dt) * C;
+		z1.normalize();
+		z2.normalize();
+		z3.normalize();
+
+		quadr.integTopBot(z1,z2,z3,temp,bot_temp);
+		area = triArea(z1,z2,z3);
+		Top += temp*area;
+		bot += bot_temp*area;
+	}
+}/*}}}*/
 
 
 //Revised version by Huanhuan, 	using area = 4.0*atan(tanqe) in triArea()
@@ -536,8 +603,8 @@ void Quadrature::integEnerg_CR(const pnt &c, const pnt &A, const pnt &B, const p
 
 	circumcenter(A,B,C,cent);
 	cent.normalize();
-	d = density(cent);
 
+	d = density(cent);
 	energ = (cent-c).magnitude2()*d;
 
 }/*}}}*/
@@ -719,6 +786,68 @@ void Quadrature::integEnerg_19P(const pnt &c, const pnt &A, const pnt &B, const 
 
 
 
+////No bug in this function. Was using area = sign*4.0*atan(tanqe) in triArea()
+//void divideIntegEnerg(const int levs, const Quadrature& quadr, const pnt &A, const pnt &B, const pnt &C, double &energ){/*{{{*/
+	//divideIntegEnerg integrates a triangle, with an arbitrary number of subdivisions.
+	//Each subdivision produces 4 triangles from 1 triangle.
+	//Master triangle vertices are A, B, C.
+	//The first pnt A is the center of corresponding Voronoi cell
+	//Number of divisions is levs
+/*	pnt z1, z2, z3;
+	double xlam, ylam, ylam2, ylam3, zlam;
+	double dt, energ_temp;
+	double area;
+	int zn, xn;
+	int i, j;
+
+	energ = 0.0;
+
+	zn = (1 << levs);
+	dt = 1.0/zn;
+
+	for(i = 0; i < zn; i++){
+		xn = zn-i;
+		zlam = i*dt;
+		for(j = 0; j < xn-1; j++){
+			xlam = 1.0 - i*dt - j*dt;
+			ylam = 1.0 - (xlam + zlam);
+			z1 =     xlam    * A +    ylam     * B +    zlam     * C;
+			z2 = (xlam - dt) * A + (ylam + dt) * B +    zlam     * C;
+			z3 = (xlam - dt) * A +    ylam     * B + (zlam + dt) * C;
+			z1.normalize();
+			z2.normalize();
+			z3.normalize();
+			quadr.integEnerg(A,z1,z2,z3,energ_temp);
+			area = triArea(z1,z2,z3);
+			energ += energ_temp*area;
+
+			z1 =   (xlam - dt)   * A +     ylam    * B + (zlam + dt) * C;
+			z2 =   (xlam - dt)   * A + (ylam + dt) * B +    zlam     * C;
+			z3 = (xlam - 2.0*dt) * A + (ylam + dt) * B + (zlam + dt) * C;
+			z1.normalize();
+			z2.normalize();
+			z3.normalize();
+			quadr.integEnerg(A,z1,z2,z3,energ_temp);
+			area = triArea(z1,z2,z3);
+			energ += energ_temp*area;
+		}
+
+		xlam = dt;
+		ylam = 1.0 - (xlam + zlam);
+
+		z1 =    xlam     * A +    ylam     * B +    zlam     * C;
+		z2 = (xlam - dt) * A + (ylam + dt) * B +    zlam     * C;
+		z3 = (xlam - dt) * A +    ylam     * B + (zlam + dt) * C;
+		z1.normalize();
+		z2.normalize();
+		z3.normalize();
+
+		quadr.integEnerg(A,z1,z2,z3,energ_temp);
+		area = triArea(z1,z2,z3);
+		energ += energ_temp*area;
+	}
+}
+*/
 
 
 //Revised version by Huanhuan, 	using area = 4.0*atan(tanqe) in triArea()
@@ -769,10 +898,6 @@ void divideIntegEnerg(const int levs, const Quadrature& quadr, const pnt& VorC, 
 		energ += energ_temp;
 	}
 }
-
-
-
-
 
 
 
@@ -1054,8 +1179,6 @@ void divideIntegrate(const int levs, const Quadrature& quadr, const pnt& VorC, c
 
 
 
-/* ***** Generic Region Routines ***** {{{ */
-
 
 void triangulateRegions(const int id, char* flags, vector<region> &region_vec){/*{{{*/
 	//Triangulate my region(s) points
@@ -1190,13 +1313,11 @@ void integrateRegions(const int id, const int div_levs, const Quadrature& quadr,
 	int a_min_region, b_min_region, c_min_region;
 	pnt top_val;
 	double bot_val;
-	int i;
 	int sign;
 	vector<region>::iterator region_itr;
 	vector<tri>::iterator tri_itr;
 	vector<pnt>::iterator point_itr;
 	vector<int>::iterator neighbor_itr;
-
 
 	#ifdef _DEBUG
 		cerr << "Integrating regions " << id << endl;
@@ -1206,13 +1327,11 @@ void integrateRegions(const int id, const int div_levs, const Quadrature& quadr,
 	bots = new double[points.size()];
 	sides = new int[points.size()];
 
-	for(i = 0; i < points.size(); i++){
+	for(int i = 0; i < points.size(); i++){
 		tops[i] = pnt(0.0,0.0,0.0,0,i);
 		bots[i] = 0.0;
 		sides[i] = 0;
 	}
-
-	i = 0;
 
 	for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
 		for(tri_itr = (*region_itr).triangles.begin(); tri_itr != (*region_itr).triangles.end(); ++tri_itr){
@@ -1373,7 +1492,6 @@ void inteGradient(const int id, const int div_levs, const Quadrature& quadr, con
 	int a_min_region, b_min_region, c_min_region;
 	pnt top_val;
 	double bot_val;
-	int i;
 	int sign;
 	vector<region>::iterator region_itr;
 	vector<tri>::iterator tri_itr;
@@ -1388,12 +1506,10 @@ void inteGradient(const int id, const int div_levs, const Quadrature& quadr, con
 	tops = new pnt[points.size()];
 	bots = new double[points.size()];
 
-	for(i = 0; i < points.size(); i++){
+	for(int i = 0; i < points.size(); i++){
 		tops[i] = pnt(0.0,0.0,0.0,0,i);
 		bots[i] = 0.0;
 	}
-
-	i = 0;
 
 	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
 		for(tri_itr = (*region_itr).triangles.begin(); tri_itr != (*region_itr).triangles.end(); ++tri_itr){
@@ -1541,8 +1657,6 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 	double c_dist_to_region, c_min_dist;
 	int a_min_region, b_min_region, c_min_region;
 	double energ_val;
-	int i;
-	int sign;
 	vector<region>::iterator region_itr;
 	vector<tri>::iterator tri_itr;
 	vector<pnt>::const_iterator point_itr;
@@ -1556,11 +1670,9 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 	my_energy = 0.0;
 	energs = new double[points.size()];
 
-	for(i = 0; i < points.size(); i++){
+	for(int i = 0; i < points.size(); i++){
 		energs[i] = 0.0;
 	}
-
-	i = 0;
 
 	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
 		for(tri_itr = (*region_itr).triangles.begin(); tri_itr != (*region_itr).triangles.end(); ++tri_itr){
@@ -1623,34 +1735,28 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 				if(a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region)){
 					//Triangle 1 - a ab ccenter
 					divideIntegEnerg(div_levs,quadr,a,a,ab,ccenter,energ_val);
-					sign = isCcw(a,ab,ccenter);
-					energs[a.idx] += energ_val*sign;
+					energs[a.idx] += energ_val*isCcw(a,ab,ccenter);
 					//Triangle 2 - a ccenter ca
 					divideIntegEnerg(div_levs,quadr,a,a,ccenter,ca,energ_val);
-					sign = isCcw(a,ccenter,ca);
-					energs[a.idx] += energ_val*sign;
+					energs[a.idx] += energ_val*isCcw(a,ccenter,ca);
 				} 
 
 				if(b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region)){
 					//Triangle 1 - b bc ccenter
 					divideIntegEnerg(div_levs,quadr,b,b,bc,ccenter,energ_val);
-					sign = isCcw(b,bc,ccenter);
-					energs[b.idx] += energ_val*sign;
+					energs[b.idx] += energ_val*isCcw(b,bc,ccenter);
 					//Triangle 2 - b ccenter ab
 					divideIntegEnerg(div_levs,quadr,b,b,ccenter,ab,energ_val);
-					sign = isCcw(b,ccenter,ab);
-					energs[b.idx] += energ_val*sign;
+					energs[b.idx] += energ_val*isCcw(b,ccenter,ab);
 				}
 
 				if(c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region)){
 					//Triangle 1 - c ca ccenter
 					divideIntegEnerg(div_levs,quadr,c,c,ca,ccenter,energ_val);
-					sign = isCcw(c,ca,ccenter);
-					energs[c.idx] += energ_val*sign;
+					energs[c.idx] += energ_val*isCcw(c,ca,ccenter);
 					//Triangle 2 - c ccenter bc
 					divideIntegEnerg(div_levs,quadr,c,c,ccenter,bc,energ_val);
-					sign = isCcw(c,ccenter,bc);
-					energs[c.idx] += energ_val*sign;
+					energs[c.idx] += energ_val*isCcw(c,ccenter,bc);
 				} 
 			}
 		}
@@ -1670,11 +1776,9 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 }/*}}}*/
 
 
-
-
-
-
-void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter, vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points, double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_nPoints, double* my_bots){/*{{{*/
+void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter, 
+					vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points, 
+					double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_lloyd, vector<double>& distr_bots){/*{{{*/
 	// Integrate Voronoi cells inside of my region
 	// Every region updates all points that are closer to their region center than any other region center.
 	// This ensures that each point is only updated once.
@@ -1685,7 +1789,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	pnt a, b, c;
 	pnt ab, bc, ca;
 	pnt ccenter;
-	pnt grad_i, pnt_i;
+	pnt grad_i, lloyd_i;
 	double dist_temp;
 	double a_dist_to_region, a_min_dist;
 	double b_dist_to_region, b_min_dist;
@@ -1821,9 +1925,11 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	}
 
 	distr_grad.clear();
-	distr_nPoints.clear();
+	distr_lloyd.clear();
+	distr_bots.clear();
 	for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-		my_bots[(*point_itr).idx] = bots[(*point_itr).idx];
+		//my_bots[(*point_itr).idx*2] = bots[(*point_itr).idx];
+		//my_bots[(*point_itr).idx*2+1] = bots[(*point_itr).idx];
 		// Ignoring boundary conditions at this moment
 		my_energy += energs[(*point_itr).idx];
 		if(!(*point_itr).isBdry){
@@ -1831,11 +1937,11 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 				grad_i = 2.0*(*point_itr)*bots[(*point_itr).idx] - 2.0*tops[(*point_itr).idx];
 				grad_i.idx = (*point_itr).idx;
 				distr_grad.push_back(grad_i);
-
-				pnt_i = tops[(*point_itr).idx] / bots[(*point_itr).idx];
-				pnt_i.normalize();
-				pnt_i.idx = (*point_itr).idx;
-				distr_nPoints.push_back(pnt_i);
+				lloyd_i = tops[(*point_itr).idx] / bots[(*point_itr).idx];
+				lloyd_i.normalize();
+				lloyd_i.idx = (*point_itr).idx;
+				distr_lloyd.push_back(lloyd_i);
+				distr_bots.push_back(bots[(*point_itr).idx]);
 			}
 		} else if((*point_itr).isBdry){
 			/*if((*point_itr).isBdry == 2){
@@ -1855,8 +1961,6 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	#endif
 	return;
 }/*}}}*/
-
-
 
 
 
@@ -2060,15 +2164,51 @@ void annealPoints(const int anneal_shape_control, const double anneal_percent, v
 
 
 /* ***** Communication Routines ***** {{{*/
-void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_regions, vector<pnt>& n_points, vector<pnt>& points){/*{{{*/
-	//Each processor transfers it's updated point set (stored in n_points) to it's region neighbors
+void getDisjointIndex(vector<region>& regions, vector<region> &my_regions, vector<int>& disjDistrIdx){/*{{{*/
+	// get indices for disjoint distribution of points, disjDistrIdx on different processors holds non-overlap indices
+	double dist_to_region, min_dist, dist_temp;
+	int min_region;
+	vector<region>::iterator region_itr;
+	vector<pnt>::iterator point_itr;
+	vector<int>::iterator neighbor_itr;
+	
+	disjDistrIdx.clear();
+
+	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+		for(point_itr = (*region_itr).points.begin(); point_itr != (*region_itr).points.end(); point_itr++){
+			dist_to_region = (*point_itr).dotForAngle((*region_itr).center);
+			min_dist = 10.0;
+
+			for(neighbor_itr = (*region_itr).neighbors.begin(); neighbor_itr != (*region_itr).neighbors.end(); ++neighbor_itr){
+				if(regions[(*neighbor_itr)].center.idx != (*region_itr).center.idx)
+				{
+					dist_temp = (*point_itr).dotForAngle(regions[(*neighbor_itr)].center);
+					if(dist_temp < min_dist){
+						min_dist = dist_temp;
+						min_region = (*neighbor_itr);
+					}
+				}
+			}
+
+			if(dist_to_region < min_dist || (dist_to_region == min_dist && (*region_itr).center.idx < min_region)){
+				disjDistrIdx.push_back((*point_itr).idx);
+			}
+		}
+	}
+	//cout<<"size of disjDistrIdx = "<<disjDistrIdx.size()<<endl;
+	return;
+}/*}}}*/
+
+
+
+void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_regions, vector<pnt>& my_points, vector<pnt>& points){/*{{{*/
+	//Each processor transfers it's updated point set (stored in my_points) to it's region neighbors
 	//as defined in RegionTriangulation
 	//
 	//This keeps communications minimal and only updates the points that need to be updated for each region.
 	vector<pnt> temp_points_in;
 	vector<pnt> temp_points_out;
 	vector<mpi::request> comms;
-	optional options;
 	vector<pnt>::iterator point_itr;
 	vector<region>::iterator region_itr;
 
@@ -2078,7 +2218,7 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
 
 	if(world.size() > 1){
 		temp_points_out.clear();
-		for(point_itr = n_points.begin(); point_itr != n_points.end(); ++point_itr){
+		for(point_itr = my_points.begin(); point_itr != my_points.end(); ++point_itr){
 			points.at((*point_itr).idx) = (*point_itr);
 			temp_points_out.push_back((*point_itr));
 		}
@@ -2104,7 +2244,7 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
 			comms.clear();
 		}
 	} else {
-		for(point_itr = n_points.begin(); point_itr != n_points.end(); ++point_itr){
+		for(point_itr = my_points.begin(); point_itr != my_points.end(); ++point_itr){
 			points.at((*point_itr).idx) = (*point_itr);
 		}
 	}
@@ -2115,6 +2255,120 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
 	cerr << "Done Transfering updated points " << world.rank() << endl;
 #endif
 }/*}}}*/
+
+
+void transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_regions, const int maxLength, vector<int>& disjDistrIdx, vector<pnt>& disj_points, vector<pnt>& myIdx_points, vector<pnt>& disj_lloyds, vector<double>& myIdx_lloyds, vector<double>& disj_bots, vector<double>& myIdx_bots){/*{{{*/
+	//Each processor transfers it's point set (stored in disj_points) to it's region neighbors
+	//as defined in RegionTriangulation
+	//This keeps communications minimal and only updates the points that need to be updated for each region.
+	vector<pnt>	temp_globPoints(maxLength);
+	vector<pnt> temp_points_in;
+	vector<pnt> temp_points_out;
+	vector<mpi::request> comms;
+	vector<pnt>	temp_globLloyds(maxLength);
+	vector<pnt> temp_lloyds_in;
+	vector<pnt> temp_lloyds_out;
+	vector<mpi::request> comms2;
+	vector<double>	temp_globBots(maxLength);
+	vector<double> temp_bots_in;
+	vector<double> temp_bots_out;
+	vector<mpi::request> comms3;
+	vector<region>::iterator region_itr;
+	int idx;
+	double transf;
+
+#ifdef _DEBUG
+	cerr << "Transfering updated points " << world.rank() << endl;
+#endif
+
+	if(world.size() > 1){
+		temp_points_out.clear();
+		temp_lloyds_out.clear();
+		temp_bots_out.clear();
+
+		for(int i=0; i < disj_points.size(); ++i){
+			temp_globPoints.at(disj_points[i].idx) = disj_points[i];
+			temp_points_out.push_back(disj_points[i]);
+
+			temp_globLloyds.at(disj_points[i].idx) = disj_lloyds[i];
+			temp_lloyds_out.push_back(disj_lloyds[i]);
+
+			temp_globBots.at(disj_points[i].idx) = disj_bots[i];
+			temp_bots_out.push_back(disj_bots[i]);
+		}
+
+		for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+			comms.resize((*region_itr).neighbors.size());
+			comms2.resize((*region_itr).neighbors.size());
+			comms3.resize((*region_itr).neighbors.size());
+
+			for(int i = 0; i < (*region_itr).neighbors.size(); i++){
+				comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_points_out);
+				comms2[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_lloyds_out);
+				comms3[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_bots_out);
+			}
+
+			for(int i = 0; i < (*region_itr).neighbors.size(); i++){
+				temp_points_in.clear();
+				temp_lloyds_in.clear();
+				temp_bots_in.clear();
+				world.recv((*region_itr).neighbors.at(i), msg_points, temp_points_in);
+				world.recv((*region_itr).neighbors.at(i), msg_points, temp_lloyds_in);
+				world.recv((*region_itr).neighbors.at(i), msg_points, temp_bots_in);
+
+				for(int j=0; j < temp_points_in.size(); ++j){
+					temp_globPoints.at(temp_points_in[j].idx) = temp_points_in[j];
+					temp_globLloyds.at(temp_points_in[j].idx) = temp_lloyds_in[j];
+					temp_globBots.at(temp_points_in[j].idx) = temp_bots_in[j];
+				}
+			}
+
+			mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors.size()]));
+			mpi::wait_all(&comms2[0],&(comms2[(*region_itr).neighbors.size()]));
+			mpi::wait_all(&comms3[0],&(comms3[(*region_itr).neighbors.size()]));
+			comms.clear();
+			comms2.clear();
+			comms3.clear();
+		}
+	} else {
+		for(int j=0; j < disj_points.size(); ++j){
+			temp_globPoints.at(disj_points[j].idx) = disj_points[j];
+			temp_globLloyds.at(disj_points[j].idx) = disj_lloyds[j];
+			temp_globBots.at(disj_points[j].idx) = disj_bots[j];
+		}
+	}
+
+	temp_points_in.clear();
+	temp_lloyds_in.clear();
+	temp_bots_in.clear();
+	temp_points_out.clear();
+	temp_lloyds_out.clear();
+	temp_bots_out.clear();
+
+	myIdx_points.clear();
+	myIdx_lloyds.clear();
+	myIdx_bots.clear();
+	for(int i=0; i<disjDistrIdx.size(); ++i)
+	{
+		idx = disjDistrIdx[i];
+
+		myIdx_points.push_back(temp_globPoints.at(idx));
+
+		myIdx_lloyds.push_back(temp_globLloyds.at(idx).getLat());
+		myIdx_lloyds.push_back(temp_globLloyds.at(idx).getLon());
+
+		myIdx_bots.push_back(temp_globBots.at(idx));
+		transf = 1-temp_globPoints[idx].z*temp_globPoints[idx].z + 1e-100;		// add safe-guard in case z=1
+		myIdx_bots.push_back(temp_globBots.at(idx)*transf);
+	}
+
+
+#ifdef _DEBUG
+	cerr << "Done Transfering By disjDistrIdx " << world.rank() << endl;
+#endif
+}/*}}}*/
+
+
 
 
 void gatherAllUpdatedPoints(const mpi::communicator& world, vector<pnt>& n_points, vector<pnt>& points){/*{{{*/

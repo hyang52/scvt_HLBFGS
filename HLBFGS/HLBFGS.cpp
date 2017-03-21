@@ -16,7 +16,7 @@
 // xueyuhanlang@gmail.com                                                    //
 //                                                                           //
 // HLBFGS is HLBFGS is freely available for non-commercial purposes.		 //
-//                    														 //
+//                                                                           //
 // Maintainer: Huanhuan Yang. huan2yang@outlook.com							 //
 //			   Customize the stopping criteria, mpi handeling, and resetting //
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ void HLBFGS_MESSAGE(bool print, int id, const double PARAMETERS[], mpi::communic
 
 //////////////////////////////////////////////////////////////////////////
 void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
-						   int cur_pos, double *diag, int INFO[])
+						   int cur_pos, double *diag, int INFO[], double *x, mpi::communicator* world)
 {
 	if (M <= 0 || INFO[2] == 0)
 	{
@@ -120,11 +120,11 @@ void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
 	double *y_start = &y[start];
 	double *s_start = &s[start];
 
-	double ys = HLBFGS_DDOT(N, y_start, s_start);
+	double ys = HLBFGS_DDOT(N, y_start, s_start, &(*world));
 
 	if (INFO[3] == 0)
 	{
-		double yy = HLBFGS_DDOT(N, y_start, y_start);
+		double yy = HLBFGS_DDOT(N, y_start, y_start, &(*world));
 		double factor = ys / yy;
 		if (INFO[12] == 1)
 		{
@@ -140,17 +140,21 @@ void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
 	{
 
 		//m1qn3 update
-		double dyy = 0;
-		double dinvss = 0;
+		double dyy, my_dyy= 0;
+		double dinvss, my_dinvss = 0;
 		int i = 0;
 #ifdef USE_OPENMP
 #pragma omp parallel for private(i) reduction(+:dinvss) reduction(+:dyy)
 #endif
 		for (i = 0; i < N; i++)
 		{
-			dinvss += s_start[i] * s_start[i] / diag[i];
-			dyy += diag[i] * y_start[i] * y_start[i];
+			my_dinvss += s_start[i] * s_start[i] / diag[i];
+			my_dyy += diag[i] * y_start[i] * y_start[i];
 		}
+		mpi::reduce(*world, my_dyy, dyy, std::plus<double>(), 0);
+		mpi::reduce(*world, my_dinvss, dinvss, std::plus<double>(), 0);
+		mpi::broadcast(*world, dyy, 0);
+		mpi::broadcast(*world, dinvss, 0);
 #ifdef USE_OPENMP
 #pragma omp parallel for private(i)
 #endif
@@ -175,7 +179,7 @@ void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
 
 //////////////////////////////////////////////////////////////////////////
 void HLBFGS_UPDATE_First_Step(int N, int M, double *q, double *s, double *y,
-							  double *rho, double *alpha, int bound, int cur_pos, int iter)
+							  double *rho, double *alpha, int bound, int cur_pos, int iter, mpi::communicator* world)
 {
 	if (M <= 0)
 	{
@@ -189,7 +193,7 @@ void HLBFGS_UPDATE_First_Step(int N, int M, double *q, double *s, double *y,
 	{
 		start = iter <= M ? cur_pos - bound + i : (cur_pos - (bound - i) + M)
 			% M;
-		alpha[i] = rho[start] * HLBFGS_DDOT(N, q, &s[start * N]);
+		alpha[i] = rho[start] * HLBFGS_DDOT(N, q, &s[start * N], &(*world));
 		tmp = -alpha[i];
 		HLBFGS_DAXPY(N, tmp, &y[start * N], q);
 	}
@@ -197,7 +201,7 @@ void HLBFGS_UPDATE_First_Step(int N, int M, double *q, double *s, double *y,
 
 //////////////////////////////////////////////////////////////////////////
 void HLBFGS_UPDATE_Second_Step(int N, int M, double *q, double *s, double *y,
-							   double *rho, double *alpha, int bound, int cur_pos, int iter)
+							   double *rho, double *alpha, int bound, int cur_pos, int iter, mpi::communicator* world)
 {
 	if (M <= 0)
 	{
@@ -210,7 +214,7 @@ void HLBFGS_UPDATE_Second_Step(int N, int M, double *q, double *s, double *y,
 	for (int i = 0; i <= bound; i++)
 	{
 		start = iter <= M ? i : (cur_pos + 1 + i) % M;
-		tmp = alpha[i] - rho[start] * HLBFGS_DDOT(N, &y[start * N], q);
+		tmp = alpha[i] - rho[start] * HLBFGS_DDOT(N, &y[start * N], q, &(*world));
 		HLBFGS_DAXPY(N, tmp, &s[start * N], q);
 	}
 }
@@ -236,7 +240,7 @@ void HLBFGS_BUILD_HESSIAN_INFO(HESSIAN_MATRIX& m_hessian, int INFO[])
 
 //////////////////////////////////////////////////////////////////////////
 void CONJUGATE_GRADIENT_UPDATE(int N, double *q, double *prev_q_update,
-							   double *prev_q_first_stage, int INFO[])
+							   double *prev_q_first_stage, int INFO[], mpi::communicator* world)
 {
 	//determine beta
 	double cg_beta = 1.0;
@@ -250,9 +254,9 @@ void CONJUGATE_GRADIENT_UPDATE(int N, double *q, double *prev_q_update,
 		}
 		else
 		{
-			cg_beta = HLBFGS_DDOT(N, q, q);
+			cg_beta = HLBFGS_DDOT(N, q, q, &(*world));
 			cg_beta /= std::fabs(cg_beta
-				- HLBFGS_DDOT(N, q, prev_q_first_stage));
+				- HLBFGS_DDOT(N, q, prev_q_first_stage, &(*world)));
 			std::copy(q, &q[N], prev_q_first_stage);
 		}
 	}
@@ -279,8 +283,8 @@ void CONJUGATE_GRADIENT_UPDATE(int N, double *q, double *prev_q_update,
 		q[i] -= prev_q_update[i];
 	}
 
-	double quad_a = HLBFGS_DDOT(N, q, q);
-	double quad_b = HLBFGS_DDOT(N, q, prev_q_update);
+	double quad_a = HLBFGS_DDOT(N, q, q, &(*world));
+	double quad_b = HLBFGS_DDOT(N, q, prev_q_update, &(*world));
 	double cg_lambda = -quad_b / quad_a;
 	if (cg_lambda > 1)
 		cg_lambda = 1;
@@ -301,7 +305,7 @@ void CONJUGATE_GRADIENT_UPDATE(int N, double *q, double *prev_q_update,
 void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			double*, double*), void EVALFUNC_H(int, double*, double*, double*,
 			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(int, int,
-			double*, double*, double*, int, double*, int[]), void NEWITERATION(int,
+			double*, double*, double*, int, double*, int[], double*, mpi::communicator*), void NEWITERATION(int,
 			int, double*, double*, double*, double*), double PARAMETERS[],
 			int INFO[], mpi::communicator* WORLD)
 {
@@ -395,22 +399,22 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 				s[start + i] = x[i] - prev_x[i];
 				y[start + i] = g[i] - prev_g[i];
 			}
-			rho[cur_pos] = 1.0 / HLBFGS_DDOT(N, &y[start], &s[start]);
+			rho[cur_pos] = 1.0 / HLBFGS_DDOT(N, &y[start], &s[start], &(*WORLD));
 			if (INFO[13] == 1)
 			{
 				update_alpha = 1.0 / (rho[cur_pos] * 6 * (prev_f - f
-					+ HLBFGS_DDOT(N, g, &s[start])) - 2.0);
+					+ HLBFGS_DDOT(N, g, &s[start], &(*WORLD))) - 2.0);
 			}
 			else if (INFO[13] == 2)
 			{
 				update_alpha = 1.0 / (rho[cur_pos] * 2 * (prev_f - f
-					+ HLBFGS_DDOT(N, g, &s[start])));
+					+ HLBFGS_DDOT(N, g, &s[start], &(*WORLD))));
 			}
 			else if (INFO[13] == 3)
 			{
 				update_alpha = 1.0 / (1 + rho[cur_pos] * (6 * (prev_f - f) + 3
-					* (HLBFGS_DDOT(N, g, &s[start]) + HLBFGS_DDOT(N,
-					prev_g, &s[start]))));
+					* (HLBFGS_DDOT(N, g, &s[start], &(*WORLD)) + HLBFGS_DDOT(N,
+					prev_g, &s[start], &(*WORLD)))));
 			}
 			if (INFO[13] != 0)
 			{
@@ -437,7 +441,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		{
 			bound = INFO[2] > M ? M - 1 : INFO[2] - 1;
 			HLBFGS_UPDATE_First_Step(N, M, q, s, y, rho, alpha, bound, cur_pos,
-				INFO[2]);
+				INFO[2], &(*WORLD));
 		}
 
 		if (INFO[10] == 0)
@@ -452,7 +456,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			}
 			else
 			{
-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO);
+				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO, x, &(*WORLD));
 			}
 		}
 		else
@@ -464,7 +468,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 					l_info.get_lcol_ptr(), l_info.get_lrow_ind(), q, &task1);
 				CONJUGATE_GRADIENT_UPDATE(N, q, prev_q_update,
 					prev_q_first_stage, INFO);
-				cg_dginit = -HLBFGS_DDOT(N, q, q);
+				cg_dginit = -HLBFGS_DDOT(N, q, q, &(*WORLD));
 				dstrsol_(&N, l_info.get_l(), l_info.get_ldiag(),
 					l_info.get_lcol_ptr(), l_info.get_lrow_ind(), q, &task2);
 			}
@@ -472,7 +476,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			{
 				INFO[12] = 0;
 				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, INFO[3]
-				== 0 ? (&scale) : diag, INFO);
+				== 0 ? (&scale) : diag, INFO, x, &(*WORLD));
 				if (INFO[3] == 0)
 				{
 					if (M > 0 && INFO[2] > 0 && scale != 1.0)
@@ -482,7 +486,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 					}
 					CONJUGATE_GRADIENT_UPDATE(N, q, prev_q_update,
 						prev_q_first_stage, INFO);
-					cg_dginit = -HLBFGS_DDOT(N, q, q);
+					cg_dginit = -HLBFGS_DDOT(N, q, q, &(*WORLD));
 					if (M > 0 && INFO[2] > 0 && scale != 1.0)
 						HLBFGS_DSCAL(N, scale, q);
 				}
@@ -499,7 +503,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 					}
 					CONJUGATE_GRADIENT_UPDATE(N, q, prev_q_update,
 						prev_q_first_stage, INFO);
-					cg_dginit = -HLBFGS_DDOT(N, q, q);
+					cg_dginit = -HLBFGS_DDOT(N, q, q, &(*WORLD));
 					if (M > 0 && INFO[2] > 0)
 					{
 #ifdef USE_OPENMP
@@ -521,7 +525,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			if(WORLD->rank()==0)	std::cout << "Convergence: cannot improve anymore!\n"<< std::endl;
 			return;
 		}
-		if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q) >= 0.)
+		if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q, &(*WORLD)) >= 0.)
 		{
 		 	HLBFGS_DAXPY(N, 1.0, q, x);
 		 	continue;
@@ -530,7 +534,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		if (INFO[2] > 0 && M > 0)
 		{
 			HLBFGS_UPDATE_Second_Step(N, M, q, s, y, rho, alpha, bound,
-				cur_pos, INFO[2]);
+				cur_pos, INFO[2], &(*WORLD));
 			cur_pos = (cur_pos + 1) % M;
 		}
 
@@ -542,7 +546,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		bool blinesearch = true;
 		if (INFO[2] == 0)
 		{
-			gnorm = HLBFGS_DNRM2(N, g);
+			gnorm = HLBFGS_DNRM2(N, g, &(*WORLD));
 			stp = 1.0;// / gnorm;
 		}
 		else
@@ -556,12 +560,12 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		{
 			MCSRCH(&N, x, &f, g, q, &stp, &ftol, &gtol, &xtol, &stpmin,
 				&stpmax, &maxfev, &info, &nfev, wa, keep, rkeep, INFO[10]
-			== 0 ? 0 : (&cg_dginit));
+			== 0 ? 0 : (&cg_dginit), &(*WORLD));
 			blinesearch = (info == -1);
 			if (blinesearch)
 			{
 				EVALFUNC(N, x, prev_x, &f, g);
-				INFO[1]++;					
+				INFO[1]++;
 			}
 
 			if (INFO[9] == 1 && prev_f > f) //modify line search to avoid too many function calls
@@ -572,12 +576,12 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 
 		} while (blinesearch);
 
-		gnorm = HLBFGS_DNRM2(N, g);
+		gnorm = HLBFGS_DNRM2(N, g, &(*WORLD));
 		INFO[2]++;
 		NEWITERATION(INFO[2], INFO[1], x, &f, g, &gnorm);
-		double xnorm = HLBFGS_DNRM2(N, x);
+		double xnorm = HLBFGS_DNRM2(N, x, &(*WORLD));
 		xnorm = 1 > xnorm ? 1 : xnorm;
-		double dxnorm = HLBFGS_DNRM2(N,q)*stp;
+		double dxnorm = HLBFGS_DNRM2(N, q, &(*WORLD))*stp;
 		rkeep[2] = gnorm;
 		rkeep[8] = xnorm;
 
@@ -599,6 +603,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		}
 		if (info != 1 || stp < stpmin || stp > stpmax)
 		{
+			std::cout << "\n info from LS:" << info << std::endl;
 			HLBFGS_MESSAGE(INFO[5] != 0, 4, PARAMETERS, &(*WORLD));
 
 			if(num_reset < INFO[14]){
@@ -607,7 +612,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 				cur_pos = 0;
 				INFO[2] = 0;
 				prev_f = f;
-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO);
+				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO, x, &(*WORLD));
 				HLBFGS_DAXPY(N, 1.0, q, x);
 				num_reset++;
 				continue;
@@ -626,7 +631,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 				cur_pos = 0;
 				INFO[2] = 0;
 				prev_f = f;
-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO);
+				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO, x, &(*WORLD));
 				HLBFGS_DAXPY(N, 1.0, q, x);
 				num_reset++;
 				continue;
@@ -647,6 +652,4 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		}
 
 	} while (true);
-
-	return;
 }

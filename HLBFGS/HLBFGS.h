@@ -16,9 +16,9 @@
 // xueyuhanlang@gmail.com                                                    //
 //                                                                           //
 // HLBFGS is HLBFGS is freely available for non-commercial purposes.		 //
-//                    														 //
+//                  														 //
 // Maintainer: Huanhuan Yang. huan2yang@outlook.com							 //
-//			   Customize the stopping criteria, mpi handeling, and resetting //
+//			   Customize the stopping criteria, mpi handeling, and resetting //                                                         //
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifndef HLBFGS_H
@@ -27,6 +27,7 @@
 #include <vector>
 #include <boost/mpi.hpp>
 namespace mpi = boost::mpi;
+
 //////////////////////////////////////////////////////////////////////////
 
 //! ICFS_INFO stores ICFS's working arrays
@@ -224,16 +225,16 @@ void INIT_HLBFGS(double PARAMETERS[], int INFO[]);
 void HLBFGS_MESSAGE(bool print, int id, const double PARAMETERS[], mpi::communicator* world=0);
 //////////////////////////////////////////////////////////////////////////
 void HLBFGS_UPDATE_First_Step(int N, int M, double *q, double *s, double *y,
-							  double *rho, double *alpha, int bound, int cur_pos, int iter);
+							  double *rho, double *alpha, int bound, int cur_pos, int iter, mpi::communicator* world=0);
 
 void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
-						   int cur_pos, double *diag, int INFO[]);
+						   int cur_pos, double *diag, int INFO[], double *x, mpi::communicator* world=0);
 
 void HLBFGS_UPDATE_Second_Step(int N, int M, double *q, double *s, double *y,
-							   double *rho, double *alpha, int bound, int cur_pos, int iter);
+							   double *rho, double *alpha, int bound, int cur_pos, int iter, mpi::communicator* world=0);
 
 void CONJUGATE_GRADIENT_UPDATE(int N, double *q, double *prev_q_update,
-							   double *prev_q_first_stage, int INFO[]);
+							   double *prev_q_first_stage, int INFO[], mpi::communicator* world=0);
 //////////////////////////////////////////////////////////////////////////
 void HLBFGS_BUILD_HESSIAN_INFO(HESSIAN_MATRIX& m_hessian, int INFO[]);
 //////////////////////////////////////////////////////////////////////////
@@ -241,7 +242,7 @@ void HLBFGS_BUILD_HESSIAN_INFO(HESSIAN_MATRIX& m_hessian, int INFO[]);
 void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			double*, double*), void EVALFUNC_H(int, double*, double*, double*,
 			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(int, int,
-			double*, double*, double*, int, double*, int[]), void NEWITERATION(int,
+			double*, double*, double*, int, double*, int[], double*, mpi::communicator*), void NEWITERATION(int,
 			int, double*, double*, double*, double*), double PARAMETERS[],
 			int INFO[], mpi::communicator* world=0);
 //////////////////////////////////////////////////////////////////////////

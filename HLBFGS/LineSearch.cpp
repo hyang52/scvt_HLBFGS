@@ -9,7 +9,7 @@
 /* Subroutine */int MCSRCH(int *n, double *x, double *f, double *g, double *s,
 						   double *stp, double *ftol, double *gtol, double *xtol, double *stpmin,
 						   double * stpmax, int *maxfev, int *info, int *nfev, double *wa,
-						   int *keep, double *rkeep, double *cg_dginit)
+						   int *keep, double *rkeep, double *cg_dginit, mpi::communicator* world)
 {
 	/* Local variables */
 	static double dg, fm, fx, fy, dgm, dgx, dgy, fxm, fym, stx, sty;
@@ -67,7 +67,7 @@
 	{
 		goto L1010;
 	}
-	dginit = cg_dginit ? *cg_dginit : HLBFGS_DDOT(*n, &g[1], &s[1]);
+	dginit = cg_dginit ? *cg_dginit : HLBFGS_DDOT(*n, &g[1], &s[1], &(*world));
 	if (dginit >= 0.)
 	{
 		goto L1010;
@@ -109,7 +109,7 @@ L30: if (brackt)
 	 goto L1010;
 L45: *info = 0;
 	 ++(*nfev);
-	 dg = HLBFGS_DDOT(*n, &g[1], &s[1]);
+	 dg = HLBFGS_DDOT(*n, &g[1], &s[1], &(*world));
 	 ftest1 = finit + *stp * dgtest;
 	 if (brackt && (*stp <= stmin || *stp >= stmax) || infoc == 0)
 	 {

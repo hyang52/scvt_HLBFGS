@@ -2,7 +2,7 @@
  * finalize_routines.h
  *
  *  Created on: Jan 13, 2017
- *      Author: Huanhuan Yang	huan2yang@outlook.com
+ *  Author: Huanhuan Yang	huan2yang@outlook.com
  *
  *  This file inherits and reshapes some data structures from 
  *  the scvt-mpi (Lloyd method) program by Doug Jacobsen and Geoff Womeldorff
@@ -669,10 +669,6 @@ void bisectTriangulation(char* flags, const mpi::communicator& world, vector<reg
 	return;
 }/*}}}*/
 /* }}} */
-
-
-
-
 
 
 

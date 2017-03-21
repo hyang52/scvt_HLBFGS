@@ -17,6 +17,8 @@
 //                                                                           //
 // HLBFGS is HLBFGS is freely available for non-commercial purposes.		 //
 //                                                                           //
+// Maintainer: Huanhuan Yang. huan2yang@outlook.com							 //
+//			   Customize for mpi handeling									 //
 ///////////////////////////////////////////////////////////////////////////////
 #ifdef USE_OPENMP
 #include <omp.h>
@@ -25,7 +27,7 @@
 #include "HLBFGS_BLAS.h"
 #include <cmath>
 
-double HLBFGS_DDOT(const int n, const double *x, const double *y)
+double HLBFGS_DDOT(const int n, const double *x, const double *y, mpi::communicator* world)
 {
 	double result = 0;
 	int i = 0;
@@ -36,7 +38,16 @@ double HLBFGS_DDOT(const int n, const double *x, const double *y)
 	{
 		result += x[i] * y[i];
 	}
-	return result;
+
+	if(world==0)
+	{
+		return result;
+	}else{
+		double g_result;
+		mpi::reduce(*world, result, g_result, std::plus<double>(), 0);
+		mpi::broadcast(*world, g_result, 0);	
+		return g_result;
+	}
 }
 
 void HLBFGS_DAXPY(const int n, const double alpha, const double *x, double *y)
@@ -51,7 +62,7 @@ void HLBFGS_DAXPY(const int n, const double alpha, const double *x, double *y)
 	}
 }
 
-double HLBFGS_DNRM2(const int n, const double *x)
+double HLBFGS_DNRM2(const int n, const double *x, mpi::communicator* world)
 {
 	double result = 0;
 	int i = 0;
@@ -62,7 +73,16 @@ double HLBFGS_DNRM2(const int n, const double *x)
 	{
 		result += x[i] * x[i];
 	}
-	return std::sqrt(result);
+
+	if(world==0)
+	{
+		return std::sqrt(result);
+	}else{
+		double g_result;
+		mpi::reduce(*world, result, g_result, std::plus<double>(), 0);
+		mpi::broadcast(*world, g_result, 0);	
+		return std::sqrt(g_result);
+	}
 }
 
 void HLBFGS_DSCAL(const int n, const double a, double *x)
@@ -76,5 +96,4 @@ void HLBFGS_DSCAL(const int n, const double a, double *x)
 		x[i] *= a;
 	}
 }
-
 

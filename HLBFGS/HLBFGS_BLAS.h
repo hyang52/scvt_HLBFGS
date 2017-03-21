@@ -22,12 +22,15 @@
 #ifndef HLBFGS_BLAS_H
 #define HLBFGS_BLAS_H
 
+#include <boost/mpi.hpp>
+namespace mpi = boost::mpi;
+
 //! return \f$ \sum_{i=0}^{n-1} x_iy_i \f$
-double HLBFGS_DDOT(const int n, const double *x, const double *y);
+double HLBFGS_DDOT(const int n, const double *x, const double *y, mpi::communicator* world=0);
 //!  \f$ y_i += \alpha x_i \f$
 void HLBFGS_DAXPY(const int n, const double alpha, const double *x, double *y);
 //! return \f$ \sqrt{\sum_{i=0}^{n-1} x_i^2} \f$
-double HLBFGS_DNRM2(const int n, const double *x);
+double HLBFGS_DNRM2(const int n, const double *x, mpi::communicator* world=0);
 //!  \f$ x_i *= a \f$
 void HLBFGS_DSCAL(const int n, const double a, double *x);
 
