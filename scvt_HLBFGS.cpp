@@ -85,7 +85,7 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy, distr_grad, distr_nPoints, &my_bots[0]);
 	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
 	mpi::broadcast(world, *f, 0);
-	if(id==0)	cout << "\n f ="<< *f <<endl;
+	//if(id==0)	cout << "\n f ="<< *f <<endl;
 	gradients.resize(N/2);
 	gatherAllUpdatedPoints(world, distr_grad, gradients);
 	n_points.resize(N/2);
@@ -386,7 +386,7 @@ int main(int argc, char **argv){
 			if(id==0)	cout<<g1[i]-g2[i]<<" ";
 */
 		if(id==0)
-			cout << "\n itr(Quasi-Newton): num_feval |  f_val  |  g_norm  |\n"<< endl;
+			cout << "\nitr(Quasi-Newton): num_feval |  f_val  |  g_norm  |\n"<< endl;
 
 		HLBFGS(x.size(), mem_num, &x[0], evalfunc, 0, defined_update_Hessian, newiteration, parameter, info, &world);
 
