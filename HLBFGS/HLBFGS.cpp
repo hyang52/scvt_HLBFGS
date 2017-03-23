@@ -603,7 +603,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 
 			if(num_reset < INFO[14]){
 				// if fail in line search, reset LBFGS
-				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0, num_fev=0 -----------------\n";
+				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0 -----------------\n";
 				cur_pos = 0;
 				INFO[2] = 0;
 				prev_f = f;
@@ -622,7 +622,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 
 			if(num_reset < INFO[14]){
 				// if reach max_itr, reset LBFGS
-				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0, num_fev=0 -----------------\n";
+				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0 -----------------\n";
 				cur_pos = 0;
 				INFO[2] = 0;
 				prev_f = f;

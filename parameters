@@ -16,7 +16,7 @@
 		max_LS						= 3 		# the max number of evaluation in line-search
 		invH0_strategy				= 2			# strategy for updating initial inverse Hessian. 0: standard, 1: M1QN3 strategy, 2: Lloyd
 		max_itr						= 200		# the max number of iterations in each single optimization, i.e. without resetting
-		max_reset					= 50		# max num of resetting LBFGS, i.e. setting iter=0 and total_num_fev=0
+		max_reset					= 50		# max num of resetting LBFGS, i.e. setting iter=0
 
 [partition]
 	sort_method						= 0			# values: 0 or 1
@@ -27,7 +27,7 @@
 	[./initial]
 		initial_point_set			= 3			# values: 0, 1, 2, or 3
 												# 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
-		number_of_generated_points 	= 120		# values: positive integer
+		number_of_generated_points 	= 12		# values: positive integer
 
 	[../integration]
 		quadrature_rule				= 2			# values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0
