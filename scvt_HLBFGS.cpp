@@ -66,16 +66,18 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	vector<pnt> gradients;
 	vector<pnt> distr_nPoints;
 	vector<double> my_bots, glob_bots;
-	my_bots.resize(N/2);
-	glob_bots.resize(N/2);
+	double pNm, proj;
+	my_bots.resize(N/3);
+	glob_bots.resize(N/3);
 
 	clearRegions(id, my_regions);
-	for(int i=0; i<N/2; ++i)
+	for(int i=0; i<N/3; ++i)
 	{
-		x[2*i] = fmod(x[2*i],M_PI);
-		if(x[2*i]>M_PI/2.0)	x[2*i] -= M_PI;
-		if(x[2*i]<-M_PI/2.0)	x[2*i] += M_PI;
-		p = pntFromLatLon(x[2*i],x[2*i+1]);
+		pNm = sqrt(x[3*i]*x[3*i] + x[3*i+1]*x[3*i+1] + x[3*i+2]*x[3*i+2]);
+		x[3*i] /= pNm;
+		x[3*i+1] /= pNm;
+		x[3*i+2] /= pNm;
+		p.x = x[3*i]; p.y = x[3*i+1]; p.z = x[3*i+2];
 		p.idx = i;
 		points[i]=p;
 	}
@@ -86,55 +88,30 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
 	mpi::broadcast(world, *f, 0);
 	//if(id==0)	cout << "\n f ="<< *f <<endl;
-	gradients.resize(N/2);
+	gradients.resize(N/3);
 	gatherAllUpdatedPoints(world, distr_grad, gradients);
-	n_points.resize(N/2);
+	n_points.resize(N/3);
 	gatherAllUpdatedPoints(world, distr_nPoints, n_points);
 
-	mpi::reduce(world, &my_bots[0], N/2, &glob_bots[0], mpi::maximum<double>(), 0);
-	mpi::broadcast(world, &glob_bots[0], N/2, 0);
+	mpi::reduce(world, &my_bots[0], N/3, &glob_bots[0], mpi::maximum<double>(), 0);
+	mpi::broadcast(world, &glob_bots[0], N/3, 0);
 	bots.resize(N);
-	for(int j=0; j<N/2; ++j){
-		bots[2*j] = glob_bots[j];
-		bots[2*j+1] = glob_bots[j] * (1-points[j].z*points[j].z + 1e-100);  // add safe-guard in case z=1
+	for(int j=0; j<N/3; ++j){
+		bots[3*j] = glob_bots[j];
+		bots[3*j+1] = glob_bots[j] ;  
+		bots[3*j+2] = glob_bots[j] ;  
 	}
 
-	double lat, lon;
-	for(int i=0; i<N/2; ++i){
-		//lat = -1.0*gradients[i].x*x_points[i].z*x_points[i].x/sqrt(1-x_points[i].z*x_points[i].z)
-		//		-gradients[i].y*x_points[i].z*x_points[i].y/sqrt(1-x_points[i].z*x_points[i].z)
-		//		+gradients[i].z*sqrt(1-x_points[i].z*x_points[i].z);
-		lat = -1.0*gradients[i].x*sin(x[2*i])*cos(x[2*i+1])
-				-gradients[i].y*sin(x[2*i])*sin(x[2*i+1])
-				+gradients[i].z*cos(x[2*i]);
-		lon = -1.0*gradients[i].x*points[i].y + gradients[i].y*points[i].x;
-
-		g[2*i] = lat;
-		g[2*i+1] = lon;
+	for(int i=0; i<N/3; ++i){
+		proj = gradients[i].dot(points[i]);
+		g[3*i] = gradients[i].x - proj * points[i].x;
+		g[3*i+1] = gradients[i].y - proj * points[i].y;
+		g[3*i+2] = gradients[i].z - proj * points[i].z;
 	}
 }
 
 
-void checkGrad(int N, double* x, double *prev_x, double* f, double* g) 
-{
-	double h=1e-8, f1, f2;
-	double tmp[N];
 
-	for(int i=0; i<N/2; ++i)
-	{
-		evalfunc(N, x, 0, &f1, tmp);
-		x[2*i] = x[2*i]+h;		
-		evalfunc(N, x, 0, &f2, tmp);
-		x[2*i] = x[2*i]-h;		
-		g[2*i] = (f2 - f1)/h;
-	
-		x[2*i+1] = x[2*i+1]+h;
-		evalfunc(N, x, 0, &f2, tmp);
-		x[2*i+1] = x[2*i+1]-h;
-		g[2*i+1] = (f2 - f1)/h;
-	}
-
-}
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -171,10 +148,11 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
 
 	if (INFO[2] == 0)
 	{
-		for(int j=0; j<N/2; ++j)
+		for(int j=0; j<N/3; ++j)
 		{
-			q[2*j] = n_points[j].getLat() - points[j].getLat();
-			q[2*j+1] = n_points[j].getLon() - points[j].getLon();
+			q[3*j] = n_points[j].x - points[j].x;
+			q[3*j+1] = n_points[j].y - points[j].y;
+			q[3*j+2] = n_points[j].z - points[j].z;
 		}
 	
 	}
@@ -349,7 +327,7 @@ int main(int argc, char **argv){
 			mpi::broadcast(world, glob_l2, 0);
 			//mpi::broadcast(world, glob_max, 0);
 			//mpi::broadcast(world, glob_l1, 0);
-			if(id==0) cout << "Initial Lloyd itr "<< ++it <<": dx_l2 = "<< glob_l2 << endl;
+			if(id==0) cout << "Lloyd itr "<< ++it <<": dx_l2 = "<< glob_l2 << endl;
 
 			if(glob_l2 > Lloyd_tol){ 
 				transferUpdatedPoints(world, my_regions, n_points, points);
@@ -362,39 +340,24 @@ int main(int argc, char **argv){
 
 		/////////////////////////////////////////////////////
 		// Quasi-Newton iteration when dx <= Lloyd_tol
-		std::vector<double> x(points.size()*2);
+		std::vector<double> x(points.size()*3);
 		for(i=0; i<points.size(); ++i)
 		{
-			x[2*i] = points[i].getLat();
-			x[2*i+1] = points[i].getLon();
+			x[3*i] = points[i].x;
+			x[3*i+1] = points[i].y;
+			x[3*i+2] = points[i].z;
 		}
 
-/*		//check gradient
-		double f;
-		double g1[x.size()];
-		double g2[x.size()];
-		evalfunc(x.size(), &x[0], 0, &f, g1);
-		checkGrad(x.size(), &x[0], 0, &f, g2);
-		if(id==0)	cout<<"\n grad =\n ";
-		for(i=0; i<x.size(); ++i)
-			if(id==0)	cout<<g1[i]<<" ";
-		if(id==0)	cout<<"\n\n check FD grad =\n ";
-		for(i=0; i<x.size(); ++i)
-			if(id==0)	cout<<g2[i]<<" ";
-		if(id==0)	cout<<"\n\n check error grad =\n ";
-		for(i=0; i<x.size(); ++i)
-			if(id==0)	cout<<g1[i]-g2[i]<<" ";
-*/
 		if(id==0)
-			cout << "\nitr(Quasi-Newton): num_feval |  f_val  |  g_norm  |\n"<< endl;
+			cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
 
 		HLBFGS(x.size(), mem_num, &x[0], evalfunc, 0, defined_update_Hessian, newiteration, parameter, info, &world);
 
 		if(id==0)
 			cout << "-----------Summary: totoal number of f (and g) evals: "<< it+info[1]<< endl;
-		for(i=0; i<x.size()/2; ++i)
+		for(i=0; i<x.size()/3; ++i)
 		{
-			p = pntFromLatLon(x[2*i],x[2*i+1]);  
+			p.x = x[3*i]; p.y = x[3*i+1]; p.z = x[3*i+2];
 			p.idx = i;
 			points[i]=p;
 		}

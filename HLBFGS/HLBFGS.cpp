@@ -521,11 +521,6 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			if(WORLD->rank()==0)	std::cout << "Convergence: cannot improve anymore!\n"<< std::endl;
 			return;
 		}
-		if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q) >= 0.)
-		{
-		 	HLBFGS_DAXPY(N, 1.0, q, x);
-		 	continue;
-		}
 
 		if (INFO[2] > 0 && M > 0)
 		{
