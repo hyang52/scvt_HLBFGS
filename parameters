@@ -7,27 +7,29 @@
 	[./real_tol]
 		c_1							= 1e-4		# for Quasi-Newton, function tolerance used in line-search
 		c_2							= 0.99		# for Quasi-Newton, gradient tolerance used in line-search
-		f-f_tol						= 1e-10		# for Quasi-Newton, stopping tolerance ||f^k+1 - f^k||/||f^k||
+		f-f_tol						= 1e-7		# for Quasi-Newton, stopping tolerance ||f^k+1 - f^k||/||f^k||
 		g_tol						= 1e-4		# for Quasi-Newton, stopping tolerance ||g^k||/||f^k||
-		dx_tol						= 1e-4		# for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
-		Lloyd_tol					= 0.5		# sugg val: 1.0 to 0.1.  tol on ||x^k+1 - x^k||_l2 to cut bwtween Lloyd and Quasi-Newton. 
-
+		dx_tol						= 1e-3		# sugg val: 1e-3 to 1e-4. for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
+		Lloyd_tol					= 1.0		# sugg val: 1.0 to 0.1.  tol on ||x^k+1 - x^k||_l2 to cut bwtween Lloyd and Quasi-Newton. 
+		Lloyd_tolPerc				= 0.9		# sugg val: 0 to 1  perc tol on ||x^k+1 - x^k||_l2 to cut bwtween Lloyd and Quasi-Newton. 
+												# if < 1.0, Lloyd_tol = Lloyd_tolPerc * initial dx_l2
 	[../int_tol]
 		max_LS						= 3 		# the max number of evaluation in line-search
 		invH0_strategy				= 2			# strategy for updating initial inverse Hessian. 0: standard, 1: M1QN3 strategy, 2: Lloyd
 		max_itr						= 200		# the max number of iterations in each single optimization, i.e. without resetting
-		max_reset					= 50		# max num of resetting LBFGS, i.e. setting iter=0 and total_num_fev=0
+		max_reset					= 10		# max num of resetting LBFGS, i.e. setting iter=0 inside LBFGS
+		max_restart					= 10		# max num of restartng Lloyd_LBFGS when bad communication happen and LBFGS return 1.
 
 [partition]
 	sort_method						= 0			# values: 0 or 1
 												# Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
 [scvt]
 	num_bisections					= 1		    # values: positive integer.  Number of times the point set will be bisected after converging.
-
+												# num_pts: 12 42 162 642 2562 10242 40962
 	[./initial]
 		initial_point_set			= 3			# values: 0, 1, 2, or 3
 												# 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
-		number_of_generated_points 	= 120		# values: positive integer
+		number_of_generated_points 	= 12		# values: positive integer
 
 	[../integration]
 		quadrature_rule				= 2			# values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0

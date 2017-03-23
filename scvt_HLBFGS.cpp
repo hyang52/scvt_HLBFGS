@@ -58,7 +58,7 @@ int use_barycenter;
 
 
 //////////////////////////////////////////////////////////////////////////
-void evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
+int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 {
 	*f = 0;
 	double my_energy;
@@ -66,7 +66,7 @@ void evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g
 	vector<pnt>	disj_grad;
 	vector<pnt>	disj_lloyd;
 	vector<pnt> my_gradPts;
-	vector<double> disj_bots;
+	vector<double> disj_bots;	
 
 	pnt p;
 	for(int i=0; i<my_N/2; ++i)
@@ -86,26 +86,15 @@ void evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g
 					my_energy, disj_grad, disj_lloyd, disj_bots);
 	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
 	mpi::broadcast(world, *f, 0);
-	if(id==0)	cout << "\n f ="<< *f <<endl;
+	//if(id==0)	cout << "\n f ="<< *f <<endl;
 
-	transferByDisjDistrIdx(world, my_regions, points.size(), disjDistrIdx, 
-							disj_grad, my_gradPts, disj_lloyd, my_lloyds, disj_bots, my_bots);
+	int my_ret = transferByDisjDistrIdx(world, my_regions, points, &my_x[0], disjDistrIdx, 
+									 disj_grad, &my_g[0], disj_lloyd, my_lloyds, disj_bots, my_bots);
+	int ret;
+	mpi::reduce(world, my_ret, ret, mpi::maximum<double>(), 0);
+	mpi::broadcast(world, ret, 0);
 
-	double lat, lon;
-	for(int i=0; i<my_N/2; ++i){
-		p = points.at(disjDistrIdx[i]);
-		//lat = -1.0*my_gradPts[i].x*p.z*p.x/sqrt(1-p.z*p.z+1e-100)
-		//		-my_gradPts[i].y*p.z*p.y/sqrt(1-p.z*p.z+1e-100)
-		//		+my_gradPts[i].z*sqrt(1-p.z*p.z);
-		lat = -1.0*my_gradPts[i].x*sin(my_x[2*i])*cos(my_x[2*i+1])
-				-my_gradPts[i].y*sin(my_x[2*i])*sin(my_x[2*i+1])
-				+my_gradPts[i].z*cos(my_x[2*i]);
-		lon = -1.0*my_gradPts[i].x*p.y + my_gradPts[i].y*p.x;
-
-		my_g[2*i] = lat;
-		my_g[2*i+1] = lon;
-	}
-
+	return ret;
 }
 
 
@@ -200,7 +189,7 @@ int main(int argc, char **argv){
 	pnt p;
 	//vector<pnt> boundary_points;
 	//vector<pnt>::iterator boundary_itr;
-	int it, i, it_bisect, num_avePoints, num_myPoints;
+	int it, i, it_bisect, it_restr, count, num_avePoints, num_myPoints;
 	double my_l2, my_max, my_l1, glob_l2, glob_max, glob_l1;	//for Lloyd step computation
 	//double proj_alpha;
 
@@ -227,6 +216,8 @@ int main(int argc, char **argv){
 
 	// constant parameters for HLBFGS, reading from dataFile
 	double Lloyd_tol = dataFile("HLBFGS/real_tol/Lloyd_tol", 1.0);
+	double Lloyd_tolPerc = dataFile("HLBFGS/real_tol/Lloyd_tolPerc", 1.0);
+	int max_restart = dataFile("HLBFGS/int_tol/max_restart", 0);
 	int mem_num = dataFile("HLBFGS/memory_number", 7);
 	double parameter[10];
 	int info[15];
@@ -292,7 +283,6 @@ int main(int argc, char **argv){
 	mpi::broadcast(world,points,0);
 	//mpi::broadcast(world,boundary_points,0);
 
-	// Each processor needs to setup the quadrature rules.
 	quadr.setQuadRule(quad_rule);
 
 	// Each processor clears my_regions (to make sure it's empty) and add it's own region into it's list.
@@ -313,123 +303,150 @@ int main(int argc, char **argv){
 	}
 
 
-
 	// Loop over it_bisect
 	for(it_bisect = 0; it_bisect <= num_bisections; it_bisect++)
 	{
-		/////////////////////////////////////////////////////
-			// Lloyd iteration as starting up
-		it = 0;
-		bool stop = false;
-		do{
+		// Loop to restart Lloyd-HLBFGS in case bad communication happends in transferByDisjDistrIdx
+		count = 0;
+		for(it_restr = 0; it_restr <= max_restart; it_restr++)
+		{
+			/////////////////////////////////////////////////////
+				// Lloyd iteration as starting up
+			it = 0;
+			bool stop = false;
+			do{
+				clearRegions(id, my_regions);
+				sortPoints(id, regions, points, sort_method, my_regions);
+				triangulateRegions(id, flags, my_regions);
+				integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
+
+	/*			if(it > max_it_no_proj){
+					proj_alpha = max((double)(it-max_it_no_proj), 0.0)/max((double)max_it_scale_alpha, 1.0);
+					projectToBoundary(proj_alpha, points, boundary_points, n_points, my_regions);
+				}
+	*/
+				computeMetrics(id, points, n_points, my_l2, my_max, my_l1);
+				mpi::reduce(world, my_l2, glob_l2, std::plus<double>(), 0);
+				//mpi::reduce(world, my_max, glob_max, mpi::maximum<double>(), 0);
+				//mpi::reduce(world, my_l1, glob_l1, std::plus<double>(), 0);
+				glob_l2 = sqrt(glob_l2);
+				//glob_max = glob_max*sqrt(points.size());
+				//glob_l1 = glob_l1/sqrt(points.size()); 
+				mpi::broadcast(world, glob_l2, 0);
+				//mpi::broadcast(world, glob_max, 0);
+				//mpi::broadcast(world, glob_l1, 0);
+				if(it == 0 && Lloyd_tolPerc < 1.0)	
+					Lloyd_tol = glob_l2 * Lloyd_tolPerc;
+				it++;
+				if(id == 0) 
+					cout << "Lloyd itr "<< it <<": dx_l2 = "<< glob_l2 << endl;
+			
+				if(glob_l2 > Lloyd_tol){ 
+					transferUpdatedPoints(world, my_regions, n_points, points);
+				}else{
+					gatherAllUpdatedPoints(world, n_points, points);
+					stop = true;
+				}
+			}while(!stop);
+
+			/////////////////////////////////////////////////////
+			// Quasi-Newton iteration when dx <= Lloyd_tol
 			clearRegions(id, my_regions);
 			sortPoints(id, regions, points, sort_method, my_regions);
-			triangulateRegions(id, flags, my_regions);
-			integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
-
-/*			if(it > max_it_no_proj){
-				proj_alpha = max((double)(it-max_it_no_proj), 0.0)/max((double)max_it_scale_alpha, 1.0);
-				projectToBoundary(proj_alpha, points, boundary_points, n_points, my_regions);
+			getDisjointIndex(regions, my_regions, disjDistrIdx);
+			std::vector<double> x(disjDistrIdx.size()*2);
+			for(i=0; i<disjDistrIdx.size(); ++i)
+			{
+				x[2*i] = points.at(disjDistrIdx[i]).getLat();
+				x[2*i+1] = points.at(disjDistrIdx[i]).getLon();
 			}
-*/
-			computeMetrics(id, points, n_points, my_l2, my_max, my_l1);
-			mpi::reduce(world, my_l2, glob_l2, std::plus<double>(), 0);
-			//mpi::reduce(world, my_max, glob_max, mpi::maximum<double>(), 0);
-			//mpi::reduce(world, my_l1, glob_l1, std::plus<double>(), 0);
-			glob_l2 = sqrt(glob_l2);
-			//glob_max = glob_max*sqrt(points.size());
-			//glob_l1 = glob_l1/sqrt(points.size()); 
-			mpi::broadcast(world, glob_l2, 0);
-			//mpi::broadcast(world, glob_max, 0);
-			//mpi::broadcast(world, glob_l1, 0);
-			if(id==0) cout << "Initial Lloyd itr "<< ++it <<": dx_l2 = "<< glob_l2 << endl;
 
-			if(glob_l2 > Lloyd_tol){ 
-				transferUpdatedPoints(world, my_regions, n_points, points);
-			}else{
-				gatherAllUpdatedPoints(world, n_points, points);
-				stop = true;
+	/*		//check gradient
+			if(num_procs==1)
+			{
+				double f;
+				double g1[x.size()];
+				double g2[x.size()];
+				evalfunc(x.size(), &x[0], 0, &f, g1);
+				checkGrad(x.size(), &x[0], 0, &f, g2);
+				if(id==0)	cout<<"\n grad =\n ";
+				for(i=0; i<x.size(); ++i)
+					if(id==0)	cout<<g1[i]<<" ";
+
+				if(id==0)	cout<<"\n\n check FD grad =\n ";
+				for(i=0; i<x.size(); ++i)
+					if(id==0)	cout<<g2[i]<<" ";
+				if(id==0)	cout<<"\n\n check error grad =\n ";
+				for(i=0; i<x.size(); ++i)
+					if(id==0)	cout<<g1[i]-g2[i]<<" ";
+			}else
+				if(id==0)	cout<<"\n Warning: check gradient only when using 1 processor ! ";
+	*/
+			if(id==0)
+				cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
+
+			int ret = HLBFGS(disjDistrIdx.size()*2, mem_num, &x[0], evalfunc, 0, 
+							 defined_update_Hessian, newiteration, parameter, info, &world);
+
+			count += it+info[1];
+			if(id==0){
+				cout << "-----------Summary: totoal number of f (and g) evals: "<< it+info[1]<< endl;
+				cout << "---------Cumulative totoal number of f (and g) evals: "<< count << endl;
 			}
-		}while(!stop);
+			vector<pnt> my_points;
+			pnt p;
+			for(i=0; i<x.size()/2; ++i)
+			{
+				p = pntFromLatLon(x[2*i],x[2*i+1]);
+				p.idx = disjDistrIdx[i];
+				my_points.push_back(p);
+			}
+			gatherAllUpdatedPoints(world, my_points, points);
 
-		/////////////////////////////////////////////////////
-		// Quasi-Newton iteration when dx <= Lloyd_tol
-
-		clearRegions(id, my_regions);
-		sortPoints(id, regions, points, sort_method, my_regions);
-		getDisjointIndex(regions, my_regions, disjDistrIdx);
-
-		std::vector<double> x(disjDistrIdx.size()*2);
-		for(i=0; i<disjDistrIdx.size(); ++i)
-		{
-			x[2*i] = points.at(disjDistrIdx[i]).getLat();
-			x[2*i+1] = points.at(disjDistrIdx[i]).getLon();
-		}
-
-/*		//check gradient
-		if(num_procs==1)
-		{
-			double f;
-			double g1[x.size()];
-			double g2[x.size()];
-			evalfunc(x.size(), &x[0], 0, &f, g1);
-			checkGrad(x.size(), &x[0], 0, &f, g2);
-			if(id==0)	cout<<"\n grad =\n ";
-			for(i=0; i<x.size(); ++i)
-				if(id==0)	cout<<g1[i]<<" ";
-
-			if(id==0)	cout<<"\n\n check FD grad =\n ";
-			for(i=0; i<x.size(); ++i)
-				if(id==0)	cout<<g2[i]<<" ";
-			if(id==0)	cout<<"\n\n check error grad =\n ";
-			for(i=0; i<x.size(); ++i)
-				if(id==0)	cout<<g1[i]-g2[i]<<" ";
-		}else
-			if(id==0)	cout<<"\n Warning: check gradient only when using 1 processor ! ";
-*/
-		if(id==0)
-			cout << "\n itr(Quasi-Newton): num_feval |  f_val  |  g_norm  |\n"<< endl;
-
-		HLBFGS(disjDistrIdx.size()*2, mem_num, &x[0], evalfunc, 0, defined_update_Hessian, newiteration, parameter, info, &world);
-
-		if(id==0)
-			cout << "-----------Summary: totoal number of f (and g) evals: "<< it+info[1]<< endl;
-		vector<pnt> my_points;
-		pnt p;
-		for(i=0; i<x.size()/2; ++i)
-		{
-			p = pntFromLatLon(x[2*i],x[2*i+1]);
-			p.idx = disjDistrIdx[i];
-			my_points.push_back(p);
-		}
-		gatherAllUpdatedPoints(world, my_points, points);
-
-		if(save_before_bisect && it_bisect < num_bisections)
-		{
-			string postNm = to_string(points.size());
-
-			clearRegions(id, my_regions);
-			sortPoints(id, regions, points, sort_vor, my_regions);
-			makeFinalTriangulations(id, flags, regions, my_regions);
-			printMyFinalTriangulation(world, my_regions, all_triangles, "triangles.dat."+postNm);
-
-			if(id == 0){
-				ofstream end_pts("end_points.dat."+postNm);
-				ofstream pt_dens("point_density.dat."+postNm);
-				//ofstream bdry_pts("boundary_points.dat");
-				for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-					end_pts << (*point_itr) << endl;
-					pt_dens << density((*point_itr)) << endl;
+			if(ret==1 && it_restr<max_restart)
+			{
+				if(id==0)
+					cout << "\n******Warning : bad communication in transferByDisjDistrIdx. Restarting Lloyd-LBFGS......" << endl;
+				continue;
+			}else if(ret==1 && it_restr==max_restart){
+				if(id==0){
+					cout << "\n***********************************************************************************";
+					cout << "\nHave restarted Lloyd-LBFGS "<<max_restart<<" times, but still get bad communication.";
+					cout << "\nYou may need to use refinement from coarse mesh, or better initialization ! " << endl;
 				}
-				//for(boundary_itr = boundary_points.begin(); boundary_itr != boundary_points.end(); boundary_itr++){
-				//	bdry_pts << (*boundary_itr) << endl;
-				//}
-				end_pts.close();
-				pt_dens.close();
-				//bdry_pts.close();
+				exit(1);
+			}else
+			{
+				if(save_before_bisect && it_bisect < num_bisections)
+				{
+					string postNm = to_string(points.size());
+
+					clearRegions(id, my_regions);
+					sortPoints(id, regions, points, sort_vor, my_regions);
+					makeFinalTriangulations(id, flags, regions, my_regions);
+					printMyFinalTriangulation(world, my_regions, all_triangles, "triangles.dat."+postNm);
+
+					if(id == 0)
+					{
+						ofstream end_pts("end_points.dat."+postNm);
+						ofstream pt_dens("point_density.dat."+postNm);
+						//ofstream bdry_pts("boundary_points.dat");
+						for(point_itr = points.begin(); point_itr != points.end(); ++point_itr)
+						{
+							end_pts << (*point_itr) << endl;
+							pt_dens << density((*point_itr)) << endl;
+						}
+						//for(boundary_itr = boundary_points.begin(); boundary_itr != boundary_points.end(); boundary_itr++){
+						//	bdry_pts << (*boundary_itr) << endl;
+						//}
+						end_pts.close();
+						pt_dens.close();
+						//bdry_pts.close();
+					}
+				}
+				break;
 			}
 		}
-
 		// Bisect if needed
 		if(it_bisect < num_bisections){
 			bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 0);
@@ -438,25 +455,8 @@ int main(int argc, char **argv){
 				cout << "\nNo more bisections for convergence" << endl;
 			}
 		}
-
 	}
 	global_timers[0].stop();
-
-	//Compute average points per region for diagnostics
-	num_avePoints = 0;
-	num_myPoints = 0;
-	clearRegions(id, my_regions);
-	sortPoints(id, regions, points, sort_method, my_regions);
-	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-		num_myPoints += (*region_itr).points.size();
-	}
-
-	mpi::reduce(world, num_myPoints, num_avePoints, std::plus<int>(), 0);
-	num_avePoints = num_avePoints / regions.size();
-	if(id == 0){
-		cout << "\nAverage points per region: " << num_avePoints << endl;
-	}
-
 
 	// Compute final triangulation by merging all triangulations from each processor into an
 	// unordered_set, and then ordering them ccw before printing them out.
@@ -483,6 +483,18 @@ int main(int argc, char **argv){
 		end_pts.close();
 		pt_dens.close();
 		//bdry_pts.close();
+	}
+
+	//Compute average points per region for diagnostics
+	num_avePoints = 0;
+	num_myPoints = 0;
+	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+		num_myPoints += (*region_itr).points.size();
+	}
+	mpi::reduce(world, num_myPoints, num_avePoints, std::plus<int>(), 0);
+	num_avePoints = num_avePoints / regions.size();
+	if(id == 0){
+		cout << "\nAverage points per region: " << num_avePoints << endl;
 	}
 
 	//Bisect all edges of all triangles to give an extra point set at the end, SaveVertices

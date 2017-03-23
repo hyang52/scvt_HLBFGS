@@ -1928,8 +1928,6 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	distr_lloyd.clear();
 	distr_bots.clear();
 	for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-		//my_bots[(*point_itr).idx*2] = bots[(*point_itr).idx];
-		//my_bots[(*point_itr).idx*2+1] = bots[(*point_itr).idx];
 		// Ignoring boundary conditions at this moment
 		my_energy += energs[(*point_itr).idx];
 		if(!(*point_itr).isBdry){
@@ -2257,43 +2255,44 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
 }/*}}}*/
 
 
-void transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_regions, const int maxLength, vector<int>& disjDistrIdx, vector<pnt>& disj_points, vector<pnt>& myIdx_points, vector<pnt>& disj_lloyds, vector<double>& myIdx_lloyds, vector<double>& disj_bots, vector<double>& myIdx_bots){/*{{{*/
-	//Each processor transfers it's point set (stored in disj_points) to it's region neighbors
+int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_regions, vector<pnt>& points, double* my_latlon, vector<int>& disjDistrIdx, vector<pnt>& disj_grads, double* myIdx_grads, vector<pnt>& disj_lloyds, vector<double>& myIdx_lloyds, vector<double>& disj_bots, vector<double>& myIdx_bots){/*{{{*/
+	//Each processor transfers it's point set (stored in disj_grads) to it's region neighbors
 	//as defined in RegionTriangulation
 	//This keeps communications minimal and only updates the points that need to be updated for each region.
-	vector<pnt>	temp_globPoints(maxLength);
-	vector<pnt> temp_points_in;
-	vector<pnt> temp_points_out;
+	vector<pnt>	temp_globGrads(points.size());
+	vector<pnt> temp_grads_in;
+	vector<pnt> temp_grads_out;
 	vector<mpi::request> comms;
-	vector<pnt>	temp_globLloyds(maxLength);
+	vector<pnt>	temp_globLloyds(points.size());
 	vector<pnt> temp_lloyds_in;
 	vector<pnt> temp_lloyds_out;
 	vector<mpi::request> comms2;
-	vector<double>	temp_globBots(maxLength);
+	vector<double>	temp_globBots(points.size());
 	vector<double> temp_bots_in;
 	vector<double> temp_bots_out;
 	vector<mpi::request> comms3;
 	vector<region>::iterator region_itr;
 	int idx;
-	double transf;
+	pnt p, grad;
+	double bot_i, transf;
 
 #ifdef _DEBUG
 	cerr << "Transfering updated points " << world.rank() << endl;
 #endif
 
 	if(world.size() > 1){
-		temp_points_out.clear();
+		temp_grads_out.clear();
 		temp_lloyds_out.clear();
 		temp_bots_out.clear();
 
-		for(int i=0; i < disj_points.size(); ++i){
-			temp_globPoints.at(disj_points[i].idx) = disj_points[i];
-			temp_points_out.push_back(disj_points[i]);
+		for(int i=0; i < disj_grads.size(); ++i){
+			temp_globGrads.at(disj_grads[i].idx) = disj_grads[i];
+			temp_grads_out.push_back(disj_grads[i]);
 
-			temp_globLloyds.at(disj_points[i].idx) = disj_lloyds[i];
+			temp_globLloyds.at(disj_grads[i].idx) = disj_lloyds[i];
 			temp_lloyds_out.push_back(disj_lloyds[i]);
 
-			temp_globBots.at(disj_points[i].idx) = disj_bots[i];
+			temp_globBots.at(disj_grads[i].idx) = disj_bots[i];
 			temp_bots_out.push_back(disj_bots[i]);
 		}
 
@@ -2303,23 +2302,23 @@ void transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_r
 			comms3.resize((*region_itr).neighbors.size());
 
 			for(int i = 0; i < (*region_itr).neighbors.size(); i++){
-				comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_points_out);
+				comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_grads_out);
 				comms2[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_lloyds_out);
 				comms3[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_bots_out);
 			}
 
 			for(int i = 0; i < (*region_itr).neighbors.size(); i++){
-				temp_points_in.clear();
+				temp_grads_in.clear();
 				temp_lloyds_in.clear();
 				temp_bots_in.clear();
-				world.recv((*region_itr).neighbors.at(i), msg_points, temp_points_in);
+				world.recv((*region_itr).neighbors.at(i), msg_points, temp_grads_in);
 				world.recv((*region_itr).neighbors.at(i), msg_points, temp_lloyds_in);
 				world.recv((*region_itr).neighbors.at(i), msg_points, temp_bots_in);
 
-				for(int j=0; j < temp_points_in.size(); ++j){
-					temp_globPoints.at(temp_points_in[j].idx) = temp_points_in[j];
-					temp_globLloyds.at(temp_points_in[j].idx) = temp_lloyds_in[j];
-					temp_globBots.at(temp_points_in[j].idx) = temp_bots_in[j];
+				for(int j=0; j < temp_grads_in.size(); ++j){
+					temp_globGrads.at(temp_grads_in[j].idx) = temp_grads_in[j];
+					temp_globLloyds.at(temp_grads_in[j].idx) = temp_lloyds_in[j];
+					temp_globBots.at(temp_grads_in[j].idx) = temp_bots_in[j];
 				}
 			}
 
@@ -2331,41 +2330,51 @@ void transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_r
 			comms3.clear();
 		}
 	} else {
-		for(int j=0; j < disj_points.size(); ++j){
-			temp_globPoints.at(disj_points[j].idx) = disj_points[j];
-			temp_globLloyds.at(disj_points[j].idx) = disj_lloyds[j];
-			temp_globBots.at(disj_points[j].idx) = disj_bots[j];
+		for(int j=0; j < disj_grads.size(); ++j){
+			temp_globGrads.at(disj_grads[j].idx) = disj_grads[j];
+			temp_globLloyds.at(disj_grads[j].idx) = disj_lloyds[j];
+			temp_globBots.at(disj_grads[j].idx) = disj_bots[j];
 		}
 	}
 
-	temp_points_in.clear();
+	temp_grads_in.clear();
 	temp_lloyds_in.clear();
 	temp_bots_in.clear();
-	temp_points_out.clear();
+	temp_grads_out.clear();
 	temp_lloyds_out.clear();
 	temp_bots_out.clear();
 
-	myIdx_points.clear();
 	myIdx_lloyds.clear();
 	myIdx_bots.clear();
 	for(int i=0; i<disjDistrIdx.size(); ++i)
 	{
 		idx = disjDistrIdx[i];
+		p = points.at(idx);
 
-		myIdx_points.push_back(temp_globPoints.at(idx));
+		bot_i = temp_globBots.at(idx);
+		if(bot_i==0.0){
+			return 1;
+		}else{
+			myIdx_bots.push_back(bot_i);
+			transf = 1.0 - p.z*p.z + 1e-100;		// add safe-guard in case z=1
+			myIdx_bots.push_back(bot_i*transf);
+		}
+
+		grad = temp_globGrads.at(idx);
+		myIdx_grads[2*i] = -1.0*grad.x*sin(my_latlon[2*i])*cos(my_latlon[2*i+1])
+							-grad.y*sin(my_latlon[2*i])*sin(my_latlon[2*i+1])
+							+grad.z*cos(my_latlon[2*i]);
+		myIdx_grads[2*i+1] = -1.0*grad.x*p.y + grad.y*p.x;
 
 		myIdx_lloyds.push_back(temp_globLloyds.at(idx).getLat());
 		myIdx_lloyds.push_back(temp_globLloyds.at(idx).getLon());
-
-		myIdx_bots.push_back(temp_globBots.at(idx));
-		transf = 1-temp_globPoints[idx].z*temp_globPoints[idx].z + 1e-100;		// add safe-guard in case z=1
-		myIdx_bots.push_back(temp_globBots.at(idx)*transf);
 	}
-
 
 #ifdef _DEBUG
 	cerr << "Done Transfering By disjDistrIdx " << world.rank() << endl;
 #endif
+
+	return 0;
 }/*}}}*/
 
 

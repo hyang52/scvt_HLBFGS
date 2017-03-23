@@ -239,7 +239,7 @@ void CONJUGATE_GRADIENT_UPDATE(int N, double *q, double *prev_q_update,
 void HLBFGS_BUILD_HESSIAN_INFO(HESSIAN_MATRIX& m_hessian, int INFO[]);
 //////////////////////////////////////////////////////////////////////////
 //! HLBFGS functions
-void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
+int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 			double*, double*), void EVALFUNC_H(int, double*, double*, double*,
 			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(int, int,
 			double*, double*, double*, int, double*, int[], double*, mpi::communicator*), void NEWITERATION(int,
