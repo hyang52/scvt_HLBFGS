@@ -3,6 +3,7 @@
 #--------------------------------------------------#
 [HLBFGS]
 	memory_number					= 7			# number of previous iterations stored in memory for limited-memory BFGS
+	itr_File						= QN2016041401.txt		# file to save iteration info from polar coordinates
 
 	[./real_tol]
 		c_1							= 1e-4		# for Quasi-Newton, function tolerance used in line-search
@@ -18,16 +19,23 @@
 		max_itr						= 200		# the max number of iterations in each single optimization, i.e. without resetting
 		max_reset					= 50		# max num of resetting LBFGS, i.e. setting iter=0
 
+[Lloyd]
+	max_itr							= 10000		# for scvt_Lloyd.exe, the max number of iterations 
+	dx_tol							= 1e-3		# for scvt_Lloyd.exe, stopping tolerance ||x^k+1 - x^k||_l2
+	eval_f							= true		# for scvt_Lloyd.exe, evaluate and print f or not in each iteration
+	itr_polarFile					= loy2016041001.txt		# for scvt_Lloyd.exe, file to save iteration info from polar coordinates
+												# format: itr dx_l2 f df_polarNorm cumulative_time(f eval not included)
+
 [partition]
 	sort_method						= 0			# values: 0 or 1
 												# Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
 [scvt]
-	num_bisections					= 0		    # values: positive integer.  Number of times the point set will be bisected after converging.
+	num_bisections					= 1		    # values: positive integer.  Number of times the point set will be bisected after converging.
 
 	[./initial]
 		initial_point_set			= 3			# values: 0, 1, 2, or 3
 												# 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
-		number_of_generated_points 	= 6000		# values: positive integer
+		number_of_generated_points 	= 12		# values: positive integer
 
 	[../integration]
 		quadrature_rule				= 2			# values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0

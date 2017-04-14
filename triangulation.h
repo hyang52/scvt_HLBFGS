@@ -287,7 +287,7 @@ class tri {/*{{{*/
 	struct hasher {/*{{{*/
 		size_t operator()(const tri &t) const {
 			uint32_t hash; 
-			size_t i, key[3] = { t.vi1, t.vi2, t.vi3 };
+			size_t i, key[3] = { (size_t)t.vi1, (size_t)t.vi2, (size_t)t.vi3 };
 			for(hash = i = 0; i < sizeof(key); ++i) {
 				hash += ((uint8_t *)key)[i];
 				hash += (hash << 10);

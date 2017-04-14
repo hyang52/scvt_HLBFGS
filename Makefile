@@ -14,13 +14,14 @@ LIBS += -I$(NCDFDIR)/include/ -L$(NCDFDIR)/lib/ -lnetcdf -lnetcdf_c++
 NCDF_FLAGS = -DUSE_NETCDF
 endif
 
+#FLAGS = -O3 -m64 $(NCDF_FLAGS)
 FLAGS = -std=c++11 -m64 $(NCDF_FLAGS)
 DFLAGS = -g -m64 -D_DEBUG
 TRISRC=Triangle/
 XMLSRC=Pugixml/
 BFGSSRC=HLBFGS/
 
-PLATFORM=_MACOS
+#PLATFORM=_MACOS
 PLATFORM=_LINUX
 
 ifeq ($(PLATFORM),_LINUX)
@@ -42,8 +43,8 @@ all: trilibrary HLBFGS
 #QNewton_Optiz: trilibrary pugixml-library 
 #	${CC} QNewton_scvt_Optizelle.cpp ${TRISRC}triangle.o ${XMLSRC}pugixml.o ${LIBS} ${FLAGS} -o QNewton_scvt_Optizelle.exe
 
-#Lloyd_scvt: trilibrary pugixml-library 
-#	${CC} Lloyd_scvt.cpp ${TRISRC}triangle.o ${XMLSRC}pugixml.o ${LIBS} ${FLAGS} -o Lloyd_scvt.exe
+scvt_Lloyd: trilibrary 
+	${CC} scvt_Lloyd.cpp ${TRISRC}triangle.o ${LIBS} ${FLAGS} -o scvt_Lloyd.exe
 
 partition_gen: trilibrary 
 	${CC} partition_gen.cpp ${TRISRC}triangle.o  ${LIBS} ${FLAGS} -o partition_gen.exe
