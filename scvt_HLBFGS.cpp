@@ -39,7 +39,6 @@ using namespace tr1;
 
 // Global variables
 int id, num_procs;
-mpi::communicator world;
 //Each processor has a list of all regions, as well as it's own regions (only one per processor currently)
 vector<region> regions;
 vector<region> my_regions;
@@ -60,7 +59,7 @@ string itrFileName;
 
 
 //////////////////////////////////////////////////////////////////////////
-void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
+void evalfunc(int N, double* x, double *prev_x, double* f, double* g, mpi::communicator* world)
 {
 	*f = 0;
 	double my_energy;
@@ -86,16 +85,16 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	sortPoints(id, regions, points, sort_method, my_regions);
 	triangulateRegions(id, flags, my_regions);
 	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy, distr_grad, distr_nPoints, &my_bots[0]);
-	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
-	mpi::broadcast(world, *f, 0);
+	mpi::reduce(*world, my_energy, *f, std::plus<double>(), 0);
+	mpi::broadcast(*world, *f, 0);
 	//if(id==0)	cout << "\n f ="<< *f <<endl;
 	gradients.resize(N/2);
-	gatherAllUpdatedPoints(world, distr_grad, gradients);
+	gatherAllUpdatedPoints(*world, distr_grad, gradients);
 	n_points.resize(N/2);
-	gatherAllUpdatedPoints(world, distr_nPoints, n_points);
+	gatherAllUpdatedPoints(*world, distr_nPoints, n_points);
 
-	mpi::reduce(world, &my_bots[0], N/2, &glob_bots[0], mpi::maximum<double>(), 0);
-	mpi::broadcast(world, &glob_bots[0], N/2, 0);
+	mpi::reduce(*world, &my_bots[0], N/2, &glob_bots[0], mpi::maximum<double>(), 0);
+	mpi::broadcast(*world, &glob_bots[0], N/2, 0);
 	bots.resize(N);
 	for(int j=0; j<N/2; ++j){
 		bots[2*j] = glob_bots[j];
@@ -118,21 +117,21 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 }
 
 
-void checkGrad(int N, double* x, double *prev_x, double* f, double* g) 
+void checkGrad(int N, double* x, double *prev_x, double* f, double* g, mpi::communicator* world) 
 {
 	double h=1e-8, f1, f2;
 	double tmp[N];
 
 	for(int i=0; i<N/2; ++i)
 	{
-		evalfunc(N, x, 0, &f1, tmp);
+		evalfunc(N, x, 0, &f1, tmp, &(*world));
 		x[2*i] = x[2*i]+h;		
-		evalfunc(N, x, 0, &f2, tmp);
+		evalfunc(N, x, 0, &f2, tmp, &(*world));
 		x[2*i] = x[2*i]-h;		
 		g[2*i] = (f2 - f1)/h;
 	
 		x[2*i+1] = x[2*i+1]+h;
-		evalfunc(N, x, 0, &f2, tmp);
+		evalfunc(N, x, 0, &f2, tmp, &(*world));
 		x[2*i+1] = x[2*i+1]-h;
 		g[2*i+1] = (f2 - f1)/h;
 	}
@@ -210,6 +209,7 @@ int main(int argc, char **argv){
 	//Processor information and global communicator
 	//master id is always 0
 	mpi::environment env(argc, argv);
+	mpi::communicator world;
 	id = world.rank();
 	num_procs = world.size();
 
@@ -391,8 +391,8 @@ int main(int argc, char **argv){
 		double f;
 		double g1[x.size()];
 		double g2[x.size()];
-		evalfunc(x.size(), &x[0], 0, &f, g1);
-		checkGrad(x.size(), &x[0], 0, &f, g2);
+		evalfunc(x.size(), &x[0], 0, &f, g1, &world);
+		checkGrad(x.size(), &x[0], 0, &f, g2, &world);
 		if(id==0)	cout<<"\n grad =\n ";
 		for(i=0; i<x.size(); ++i)
 			if(id==0)	cout<<g1[i]<<" ";
