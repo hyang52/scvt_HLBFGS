@@ -49,11 +49,16 @@ vector<double> my_bots;
 vector<int> disjDistrIdx;
 Quadrature quadr;
 char * flags;
+ofstream itrFile;
+int it_bisect;
+boost::shared_ptr<mpi_timer> itr_timer;
+double initial_time;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
 int use_barycenter;
-
+int num_bisections;
+string itrFileName;
 
 
 
@@ -123,6 +128,13 @@ void checkGrad(int my_N, double* my_x, double *my_prev_x, double* f, double* my_
 void newiteration(int iter, int call_iter, double *x, double* f, double *g,  double* gnorm)
 {
 	if(id==0){
+		if(it_bisect==num_bisections)
+		{
+			itr_timer->stop();
+			itrFile << iter << " " << call_iter << " " << *f << " " << *gnorm << " " 
+					<< initial_time + itr_timer->total_time <<"\n" ;
+			itr_timer->start();
+		}
 		std::cout << iter <<": " << call_iter <<" " << *f <<" " << *gnorm  << std::endl;
 	}
 }
@@ -189,7 +201,7 @@ int main(int argc, char **argv){
 	pnt p;
 	//vector<pnt> boundary_points;
 	//vector<pnt>::iterator boundary_itr;
-	int it, i, it_bisect, it_restr, count, num_avePoints, num_myPoints;
+	int it, i, it_restr, count, num_avePoints, num_myPoints;
 	double my_l2, my_max, my_l1, glob_l2, glob_max, glob_l1;	//for Lloyd step computation
 	//double proj_alpha;
 
@@ -202,11 +214,12 @@ int main(int argc, char **argv){
 	int points_begin = dataFile("scvt/initial/initial_point_set", 3); 
 	int num_pts = dataFile("scvt/initial/number_of_generated_points", 12);
 	sort_method = dataFile("partition/sort_method", 0);
-	int num_bisections = dataFile("scvt/num_bisections", 0);
+	num_bisections = dataFile("scvt/num_bisections", 0);
 	int quad_rule = dataFile("scvt/integration/quadrature_rule", 0);	
 	use_barycenter = dataFile("scvt/integration/delaunay_triangle_center", 0);
 	div_levs = dataFile("scvt/integration/division_levs", 1);
 	bool save_before_bisect = dataFile("fileIO/save_before_bisect", false);
+	itrFileName = dataFile("HLBFGS/itr_File", "");
 	//double max_bdryResol = dataFile("scvt/resolution/max_boundary_resolution", 40000.0);
 
 	// Input flags for the Triangle package
@@ -235,13 +248,15 @@ int main(int argc, char **argv){
 	if(info[3]==2)	info[12] = 1;
 
 	//Define timers for performance studies
-	const int num_global_timers = 4;
-	mpi_timer global_timers[num_global_timers];
-	string global_names[num_global_timers] = {"Global Time", "Final Gather", "Final Triangulation", "Final Bisection"};
-	for(i = 0; i < num_global_timers; i++){
-		global_timers[i] = mpi_timer(global_names[i]);
+	const int num_timers = 4;
+	mpi_timer timers[num_timers];
+	string global_names[num_timers] = {"Global Time", "Final Gather", "Final Triangulation", "Initialization"};
+	for(i = 0; i < num_timers; i++){
+		timers[i] = mpi_timer(global_names[i]);
 	}
-	global_timers[0].start(); // Global Time Timer
+	timers[0].start(); // Global Time Timer
+	timers[3].start(); // Initialization timer
+	itr_timer.reset(new mpi_timer("Cumulative Time"));
 
 	// Setup initial point set and build regions
 	if(id == 0){
@@ -306,13 +321,21 @@ int main(int argc, char **argv){
 	// Loop over it_bisect
 	for(it_bisect = 0; it_bisect <= num_bisections; it_bisect++)
 	{
+		if(it_bisect==num_bisections && id==0)
+		{
+			timers[3].stop();
+			initial_time = timers[3].total_time;
+			itrFile.open(itrFileName.c_str());
+			itr_timer->start();
+		}
+
 		// Loop to restart Lloyd-HLBFGS in case bad communication happends in transferByDisjDistrIdx
 		count = 0;
 		for(it_restr = 0; it_restr <= max_restart; it_restr++)
 		{
-			/////////////////////////////////////////////////////
-				// Lloyd iteration as starting up
 			it = 0;
+			/////////////////////////////////////////////////////
+/*				// Lloyd iteration as starting up
 			bool stop = false;
 			do{
 				clearRegions(id, my_regions);
@@ -320,11 +343,11 @@ int main(int argc, char **argv){
 				triangulateRegions(id, flags, my_regions);
 				integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
 
-	/*			if(it > max_it_no_proj){
-					proj_alpha = max((double)(it-max_it_no_proj), 0.0)/max((double)max_it_scale_alpha, 1.0);
-					projectToBoundary(proj_alpha, points, boundary_points, n_points, my_regions);
-				}
-	*/
+	//			if(it > max_it_no_proj){
+	//				proj_alpha = max((double)(it-max_it_no_proj), 0.0)/max((double)max_it_scale_alpha, 1.0);
+	//				projectToBoundary(proj_alpha, points, boundary_points, n_points, my_regions);
+	//			}
+	
 				computeMetrics(id, points, n_points, my_l2, my_max, my_l1);
 				mpi::reduce(world, my_l2, glob_l2, std::plus<double>(), 0);
 				//mpi::reduce(world, my_max, glob_max, mpi::maximum<double>(), 0);
@@ -348,7 +371,7 @@ int main(int argc, char **argv){
 					stop = true;
 				}
 			}while(!stop);
-
+*/
 			/////////////////////////////////////////////////////
 			// Quasi-Newton iteration when dx <= Lloyd_tol
 			clearRegions(id, my_regions);
@@ -385,8 +408,10 @@ int main(int argc, char **argv){
 			if(id==0)
 				cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
 
+
 			int ret = HLBFGS(disjDistrIdx.size()*2, mem_num, &x[0], evalfunc, 0, 
 							 defined_update_Hessian, newiteration, parameter, info, &world);
+
 
 			count += it+info[1];
 			if(id==0){
@@ -447,6 +472,9 @@ int main(int argc, char **argv){
 				break;
 			}
 		}
+		if(it_bisect==num_bisections)
+			itrFile.close();
+
 		// Bisect if needed
 		if(it_bisect < num_bisections){
 			bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 0);
@@ -456,16 +484,16 @@ int main(int argc, char **argv){
 			}
 		}
 	}
-	global_timers[0].stop();
+	timers[0].stop();
 
 	// Compute final triangulation by merging all triangulations from each processor into an
 	// unordered_set, and then ordering them ccw before printing them out.
 	// write triangles to triangles.dat
-	global_timers[2].start(); // Final Triangulation Timer
+	timers[2].start(); // Final Triangulation Timer
 	clearRegions(id, my_regions);
 	sortPoints(id, regions, points, sort_vor, my_regions);
 	makeFinalTriangulations(id, flags, regions, my_regions);
-	global_timers[2].stop();
+	timers[2].stop();
 
 	printMyFinalTriangulation(world, my_regions, all_triangles);
 
@@ -497,17 +525,17 @@ int main(int argc, char **argv){
 		cout << "\nAverage points per region: " << num_avePoints << endl;
 	}
 
-	//Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
-	global_timers[3].start(); // Final Bisection Timer
+/*	//Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
+	timers[3].start(); // Final Bisection Timer
 	if(num_bisections>0) 
 		bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 1, "bisected_points.dat");
-	global_timers[3].stop();
-
+	timers[3].stop();
+*/
 	//Print out final timers, for global times.
 	if(id == 0){
 		cout << endl << " ---- Final Timers ---- " << endl;
-		for(i = 0; i < num_global_timers; i++){
-			cout << global_timers[i];
+		for(i = 0; i < num_timers; i++){
+			cout << timers[i];
 		}
 
 	}
