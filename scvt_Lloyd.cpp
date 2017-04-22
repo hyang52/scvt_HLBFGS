@@ -45,6 +45,8 @@ vector<pnt> points;
 vector<pnt> n_points;
 Quadrature quadr;
 char * flags;
+int  my_numPts=0;
+int  num_sorts=0;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
@@ -188,6 +190,10 @@ int main(int argc, char **argv){
                 timers[0].start();
             clearRegions(id, my_regions);
             sortPoints(id, regions, points, sort_method, my_regions);
+			for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+				my_numPts += (*region_itr).points.size();
+			}
+			num_sorts++;
             triangulateRegions(id, flags, my_regions);
             integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
 
@@ -319,6 +325,7 @@ int main(int argc, char **argv){
     timers[2].stop();
 
     //Compute average points per region for diagnostics
+    cout << "\nAverage points per iteration: " << my_numPts/num_sorts << endl;
     num_avePoints = 0;
     num_myPoints = 0;
     for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){

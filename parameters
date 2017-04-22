@@ -3,7 +3,7 @@
 #--------------------------------------------------#
 [HLBFGS]
     memory_number                   = 7         # number of previous iterations stored in memory for limited-memory BFGS
-    itr_File                        = QN2017042100.txt      # file to save iteration info from polar coordinates
+    itr_File                        = QN2017042206.txt      # file to save iteration info from polar coordinates
 
     [./real_tol]
         c_1                         = 1e-4      # for Quasi-Newton, function tolerance used in line-search
@@ -27,15 +27,15 @@
                                                 # format: itr dx_l2 f df_polarNorm cumulative_time(f eval not included)
 
 [partition]
-    sort_method                     = 0         # values: 0 or 1
+    sort_method                     = 1         # values: 0 or 1
                                                 # Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
 [scvt]
-    num_bisections                  = 2         # values: positive integer.  Number of times the point set will be bisected after converging
+    num_bisections                  = 0         # values: positive integer.  Number of times the point set will be bisected after converging
 
     [./initial]
         initial_point_set           = 3         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
-        number_of_generated_points  = 642       # values: positive integer
+        number_of_generated_points  = 10242       # values: positive integer
 
     [../integration]
         quadrature_rule             = 2         # values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0

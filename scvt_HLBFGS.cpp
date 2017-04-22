@@ -51,6 +51,8 @@ ofstream itrFile;
 int it_bisect;
 boost::shared_ptr<mpi_timer> itr_timer;
 double initial_time;
+int  my_numPts=0;
+int  num_sorts=0;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
@@ -72,7 +74,6 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g, mpi::commu
     my_bots.resize(N/2);
     glob_bots.resize(N/2);
 
-    clearRegions(id, my_regions);
     for(int i=0; i<N/2; ++i)
     {
         x[2*i] = fmod(x[2*i],M_PI);
@@ -82,8 +83,12 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g, mpi::commu
         p.idx = i;
         points[i]=p;
     }
-
+    clearRegions(id, my_regions);
     sortPoints(id, regions, points, sort_method, my_regions);
+    for(vector<region>::iterator region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+        my_numPts += (*region_itr).points.size();
+    }
+	num_sorts++;
     triangulateRegions(id, flags, my_regions);
     inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy, distr_grad, distr_nPoints, &my_bots[0]);
     mpi::reduce(*world, my_energy, *f, std::plus<double>(), 0);
@@ -480,6 +485,7 @@ int main(int argc, char **argv){
     timers[2].stop();
 
     //Compute average points per region for diagnostics
+    cout << "\nAverage points per iteration: " << my_numPts/num_sorts << endl;
     num_avePoints = 0;
     num_myPoints = 0;
     for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){

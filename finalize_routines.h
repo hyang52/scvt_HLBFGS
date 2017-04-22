@@ -272,7 +272,7 @@ void gatherFinalTriangles(const mpi::communicator& world, vector<region>& my_reg
 		mycomm.wait();
 		temp_tris_out.clear();
 	}
-	cout << " Size of all_triangles = " << all_triangles.size() << endl;
+
 	#ifdef _DEBUG
 		cerr << " Store my final triangulation done " << id << endl;
 	#endif
