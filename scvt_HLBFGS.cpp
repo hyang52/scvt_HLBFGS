@@ -476,7 +476,13 @@ int main(int argc, char **argv){
 			itrFile.close();
 
 		// Bisect if needed
-		if(it_bisect < num_bisections){
+		if(it_bisect < num_bisections)
+		{
+			if(!save_before_bisect)
+			{
+		        clearRegions(id, my_regions);
+		        sortPoints(id, regions, points, sort_vor, my_regions);
+			}
 			bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 0);
 		} else {
 			if(id == 0 && num_bisections>0){
