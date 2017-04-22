@@ -1087,6 +1087,8 @@ void triangulateRegions(const int id, char* flags, vector<region> &region_vec){/
 #endif
 
 	for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
+		(*region_itr).triangles.clear();
+
 		in.numberofpoints = (*region_itr).points.size();
 		in.numberofpointattributes = 0;
 		in.pointlist = (double *) malloc(in.numberofpoints * 2 * sizeof(double));

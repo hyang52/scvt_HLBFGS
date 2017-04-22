@@ -199,7 +199,7 @@ int main(int argc, char **argv){
                 projectToBoundary(proj_alpha, points, boundary_points, n_points, my_regions);
             }
 */
-
+    		timers[1].stop(); // Global Time Timer
             double fval=0.0, grad_norm=0.0, grad_normPolar=0.0;
             if(eval_f)
             {
@@ -227,6 +227,7 @@ int main(int argc, char **argv){
                 }
                 grad_normPolar = sqrt(grad_normPolar);
             }
+    		timers[1].start(); // Global Time Timer
 
             if(it_bisect==num_bisections)
                 timers[0].start();
@@ -291,7 +292,13 @@ int main(int argc, char **argv){
         }
 
         // Bisect if needed
-        if(it_bisect < num_bisections){
+        if(it_bisect < num_bisections)
+		{
+			if(!save_before_bisect)
+			{
+		        clearRegions(id, my_regions);
+		        sortPoints(id, regions, points, sort_vor, my_regions);
+			}
             bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 0);
         } else {
             if(id == 0 && num_bisections>0){

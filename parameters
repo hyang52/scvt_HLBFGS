@@ -35,7 +35,7 @@
     [./initial]
         initial_point_set           = 3         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
-        number_of_generated_points  = 162       # values: positive integer
+        number_of_generated_points  = 642       # values: positive integer
 
     [../integration]
         quadrature_rule             = 2         # values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0

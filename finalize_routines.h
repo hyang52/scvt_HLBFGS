@@ -87,7 +87,7 @@ void printRegions(const int id, vector<pnt>& points, int sort_method, vector<reg
 
 void makeFinalTriangulations(const int id, char* flags, vector<region>& regions, vector<region> &region_vec){/*{{{*/
 	//Make final triangulations, triangulates regions as in the function triangulateRegions, however
-	//here the triangle vertices are ordered from smallest index to largest index
+	//here the triangles are push_back to regions' triangle vectors non-repeatedly
 	int i;
 	int vi1, vi2, vi3;
 	int swp_vi;
@@ -115,6 +115,8 @@ void makeFinalTriangulations(const int id, char* flags, vector<region>& regions,
 #endif
 
 	for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
+		(*region_itr).triangles.clear();
+
 		in.numberofpoints = (*region_itr).points.size();
 		in.numberofpointattributes = 0;
 		in.pointlist = (double *) malloc(in.numberofpoints * 2 * sizeof(double));
@@ -214,10 +216,9 @@ void makeFinalTriangulations(const int id, char* flags, vector<region>& regions,
 
 
 
-void storeMyFinalTriangulation(const mpi::communicator& world, vector<region>& my_regions, vector<tri>& all_triangles){/*{{{*/
+void gatherFinalTriangles(const mpi::communicator& world, vector<region>& my_regions, vector<tri>& all_triangles){/*{{{*/
 	//Merge all finalTriangulations made with makeMyFinalTriangulations onto master processor.
 	//Master processor inserts all triangles into an unordered_set to create a list of unique triangles
-	//Triangles are then written into a file triangles.dat in ccw order
 	mpi::request mycomm;
 	vector<tri> temp_tris_out;
 	vector<tri> temp_tris_in;
@@ -271,7 +272,7 @@ void storeMyFinalTriangulation(const mpi::communicator& world, vector<region>& m
 		mycomm.wait();
 		temp_tris_out.clear();
 	}
-
+	cout << " Size of all_triangles = " << all_triangles.size() << endl;
 	#ifdef _DEBUG
 		cerr << " Store my final triangulation done " << id << endl;
 	#endif
@@ -296,7 +297,7 @@ void printMyFinalTriangulation(const mpi::communicator& world, vector<region>& m
 		cerr << " Print my final triangulation " << world.rank() << endl;
 	#endif
 
-	storeMyFinalTriangulation(world, my_regions, all_triangles);
+	gatherFinalTriangles(world, my_regions, all_triangles);
 	if(world.rank() == 0){
 		ofstream tris_out(triFile);
 
@@ -653,7 +654,7 @@ void bisectTriangulation(char* flags, const mpi::communicator& world, vector<reg
 	if(!output)
 		makeFinalTriangulations(world.rank(), flags, regions, my_regions);
 
-	storeMyFinalTriangulation(world, my_regions, all_triangles);
+	gatherFinalTriangles(world, my_regions, all_triangles);
 	bisectEdges(world, all_triangles, regions, points, output);
 
 	vector<pnt>::iterator point_itr;
