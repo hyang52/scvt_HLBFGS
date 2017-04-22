@@ -53,6 +53,8 @@ ofstream itrFile;
 int it_bisect;
 boost::shared_ptr<mpi_timer> itr_timer;
 double initial_time;
+int  my_numPts=0;
+int  num_sorts=0;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
@@ -86,6 +88,10 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 	transferUpdatedPoints(world, my_regions, my_points, points);
 	clearRegions(id, my_regions);
 	sortPoints(id, regions, points, sort_method, my_regions);
+    for(vector<region>::iterator region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+        my_numPts += (*region_itr).points.size();
+    }
+	num_sorts++;
 	triangulateRegions(id, flags, my_regions);
 	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, 
 					my_energy, disj_grad, disj_lloyd, disj_bots);
@@ -215,6 +221,7 @@ int main(int argc, char **argv){
 	int num_pts = dataFile("scvt/initial/number_of_generated_points", 12);
 	sort_method = dataFile("partition/sort_method", 0);
 	num_bisections = dataFile("scvt/num_bisections", 0);
+	bool bisect_final = dataFile("scvt/bisect_final", false);
 	int quad_rule = dataFile("scvt/integration/quadrature_rule", 0);	
 	use_barycenter = dataFile("scvt/integration/delaunay_triangle_center", 0);
 	div_levs = dataFile("scvt/integration/division_levs", 1);
@@ -520,6 +527,7 @@ int main(int argc, char **argv){
 	}
 
 	//Compute average points per region for diagnostics
+    cout << "\nAverage points per iteration: " << my_numPts/num_sorts << endl;
 	num_avePoints = 0;
 	num_myPoints = 0;
 	for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
@@ -531,12 +539,12 @@ int main(int argc, char **argv){
 		cout << "\nAverage points per region: " << num_avePoints << endl;
 	}
 
-/*	//Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
+	//Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
 	timers[3].start(); // Final Bisection Timer
-	if(num_bisections>0) 
+	if(bisect_final) 
 		bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 1, "bisected_points.dat");
 	timers[3].stop();
-*/
+
 	//Print out final timers, for global times.
 	if(id == 0){
 		cout << endl << " ---- Final Timers ---- " << endl;

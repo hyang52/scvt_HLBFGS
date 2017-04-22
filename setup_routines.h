@@ -450,9 +450,9 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
 							neighbor_itr != (*region_itr).neighbors1.end() && added == 0;
 							++neighbor_itr){
 						if(min_region == (*neighbor_itr)){
-							val = (*region_itr).center.dotForAngle(regions[min_region].center);
-
-							if(my_val < val) {
+							//val = (*region_itr).center.dotForAngle(regions[min_region].center);
+							//if(my_val < val) 
+							{
 								(*region_itr).points.push_back((*point_itr));
 							}
 
