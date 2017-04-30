@@ -74,14 +74,15 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 	vector<pnt>	disj_lloyd;
 	vector<pnt> my_gradPts;
 	vector<double> disj_bots;	
-
+	double pNm;
 	pnt p;
-	for(int i=0; i<my_N/2; ++i)
+	for(int i=0; i<my_N/3; ++i)
 	{
-		my_x[2*i] = fmod(my_x[2*i],M_PI);
-		if(my_x[2*i]>M_PI/2.0 )	my_x[2*i] -= M_PI;
-		if(my_x[2*i]<-M_PI/2.0 )	my_x[2*i] += M_PI;
-		p = pntFromLatLon(my_x[2*i],my_x[2*i+1]);
+		pNm = sqrt(my_x[3*i]*my_x[3*i] + my_x[3*i+1]*my_x[3*i+1] + my_x[3*i+2]*my_x[3*i+2]);
+		my_x[3*i] /= pNm;
+		my_x[3*i+1] /= pNm;
+		my_x[3*i+2] /= pNm;
+		p.x = my_x[3*i]; p.y = my_x[3*i+1]; p.z = my_x[3*i+2];
 		p.idx = disjDistrIdx[i];
 		my_points.push_back(p);
 	}
@@ -109,26 +110,6 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 }
 
 
-void checkGrad(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g) 
-{
-	double h=1e-8, f1, f2;
-	double tmp[my_N];
-	
-	for(int i=0; i<my_N/2; ++i)
-	{
-		evalfunc(my_N, my_x, 0, &f1, tmp);
-		my_x[2*i] = my_x[2*i]+h;		
-		evalfunc(my_N, my_x, 0, &f2, tmp);
-		my_x[2*i] = my_x[2*i]-h;		
-		my_g[2*i] = (f2 - f1)/h;
-	
-		my_x[2*i+1] = my_x[2*i+1]+h;
-		evalfunc(my_N, my_x, 0, &f2, tmp);
-		my_x[2*i+1] = my_x[2*i+1]-h;
-		my_g[2*i+1] = (f2 - f1)/h;
-	}
-
-}
 
 //////////////////////////////////////////////////////////////////////////
 void newiteration(int iter, int call_iter, double *x, double* f, double *g,  double* gnorm)
@@ -393,39 +374,19 @@ int main(int argc, char **argv){
 			clearRegions(id, my_regions);
 			sortPoints(id, regions, points, sort_method, my_regions);
 			getDisjointIndex(regions, my_regions, disjDistrIdx);
-			std::vector<double> x(disjDistrIdx.size()*2);
+			std::vector<double> x(disjDistrIdx.size()*3);
 			for(i=0; i<disjDistrIdx.size(); ++i)
 			{
-				x[2*i] = points.at(disjDistrIdx[i]).getLat();
-				x[2*i+1] = points.at(disjDistrIdx[i]).getLon();
+				x[3*i] = points.at(disjDistrIdx[i]).x;
+				x[3*i+1] = points.at(disjDistrIdx[i]).y;
+				x[3*i+2] = points.at(disjDistrIdx[i]).z;
 			}
 
-	/*		//check gradient
-			if(num_procs==1)
-			{
-				double f;
-				double g1[x.size()];
-				double g2[x.size()];
-				evalfunc(x.size(), &x[0], 0, &f, g1);
-				checkGrad(x.size(), &x[0], 0, &f, g2);
-				if(id==0)	cout<<"\n grad =\n ";
-				for(i=0; i<x.size(); ++i)
-					if(id==0)	cout<<g1[i]<<" ";
-
-				if(id==0)	cout<<"\n\n check FD grad =\n ";
-				for(i=0; i<x.size(); ++i)
-					if(id==0)	cout<<g2[i]<<" ";
-				if(id==0)	cout<<"\n\n check error grad =\n ";
-				for(i=0; i<x.size(); ++i)
-					if(id==0)	cout<<g1[i]-g2[i]<<" ";
-			}else
-				if(id==0)	cout<<"\n Warning: check gradient only when using 1 processor ! ";
-	*/
 			if(id==0)
 				cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
 
 
-			int ret = HLBFGS(disjDistrIdx.size()*2, mem_num, &x[0], evalfunc, 0, 
+			int ret = HLBFGS(disjDistrIdx.size()*3, mem_num, &x[0], evalfunc, 0, 
 							 defined_update_Hessian, newiteration, parameter, info, &world);
 
 
@@ -436,9 +397,10 @@ int main(int argc, char **argv){
 			}
 			vector<pnt> my_points;
 			pnt p;
-			for(i=0; i<x.size()/2; ++i)
+			for(i=0; i<x.size()/3; ++i)
 			{
-				p = pntFromLatLon(x[2*i],x[2*i+1]);
+				p.x=x[3*i]; p.y=x[3*i+1]; p.z=x[3*i+2];
+				p.normalize();
 				p.idx = disjDistrIdx[i];
 				my_points.push_back(p);
 			}
