@@ -50,6 +50,12 @@ all: trilibrary HLBFGS
 #Lloyd_scvt: trilibrary pugixml-library
 #	${CC} Lloyd_scvt.cpp ${TRISRC}triangle.o ${XMLSRC}pugixml.o ${LIBS} ${FLAGS} -o Lloyd_scvt.exe
 
+scvt_Lloyd: trilibrary
+	${CC} scvt_Lloyd.cpp ${TRISRC}triangle.o ${LIBS} ${FLAGS} -o scvt_Lloyd.exe
+
+refine: trilibrary
+	${CC} refine.cpp ${TRISRC}triangle.o  ${LIBS} ${FLAGS} -o refine.exe
+
 partition_gen: trilibrary
 	${CC} partition_gen.cpp ${TRISRC}triangle.o  ${LIBS} ${FLAGS} -o partition_gen.exe
 

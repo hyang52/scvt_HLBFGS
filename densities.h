@@ -14,11 +14,6 @@
 #include <stdlib.h>     
 #include "triangulation.h"
 
-double uniform_density(const pnt &p){
-	return 1.0;
-}
-
-
 double ellipse_density(const pnt &p, double lat_c, double lon_c, double lat_width, double lon_width){/*{{{*/
 	//density returns the value of the density function at point p
 	//	return 1.0; // Uniform density
@@ -85,7 +80,7 @@ double density(const pnt &p){/*{{{*/
 	//density returns the value of the density function at point p
 	//return 1.0; // Uniform density
 
-	/* Density function for Shallow Water Test Case 5
+	 //Density function for Shallow Water Test Case 5
 	pnt cent;
 	double r;
 	double norm;
@@ -119,8 +114,7 @@ double density(const pnt &p){/*{{{*/
     // */
 
     // /* Pop high resolution density function.
-    return pop_highres_density(p); 
-    //return uniform_density(p);
+    //return pop_highres_density(p); 
     // */
 
 }/*}}}*/

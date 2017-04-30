@@ -53,15 +53,15 @@ ofstream itrFile;
 int it_bisect;
 boost::shared_ptr<mpi_timer> itr_timer;
 double initial_time;
-int  my_numPts=0;
-int  num_sorts=0;
+//int  my_numPts=0;
+//int  num_sorts=0;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
 int use_barycenter;
 int num_bisections;
 string itrFileName;
-
+bool save_bisectItr;
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -88,10 +88,10 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 	transferUpdatedPoints(world, my_regions, my_points, points);
 	clearRegions(id, my_regions);
 	sortPoints(id, regions, points, sort_method, my_regions);
-    for(vector<region>::iterator region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-        my_numPts += (*region_itr).points.size();
-    }
-	num_sorts++;
+    //for(vector<region>::iterator region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+    //    my_numPts += (*region_itr).points.size();
+    //}
+	//num_sorts++;
 	triangulateRegions(id, flags, my_regions);
 	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points, 
 					my_energy, disj_grad, disj_lloyd, disj_bots);
@@ -134,7 +134,7 @@ void checkGrad(int my_N, double* my_x, double *my_prev_x, double* f, double* my_
 void newiteration(int iter, int call_iter, double *x, double* f, double *g,  double* gnorm)
 {
 	if(id==0){
-		if(it_bisect==num_bisections)
+		if(it_bisect==num_bisections || save_bisectItr)
 		{
 			itr_timer->stop();
 			itrFile << iter << " " << call_iter << " " << *f << " " << *gnorm << " " 
@@ -227,6 +227,7 @@ int main(int argc, char **argv){
 	div_levs = dataFile("scvt/integration/division_levs", 1);
 	bool save_before_bisect = dataFile("fileIO/save_before_bisect", false);
 	itrFileName = dataFile("HLBFGS/itr_File", "");
+	save_bisectItr = dataFile("fileIO/save_bisect_itrFile", false);
 	//double max_bdryResol = dataFile("scvt/resolution/max_boundary_resolution", 40000.0);
 
 	// Input flags for the Triangle package
@@ -255,9 +256,9 @@ int main(int argc, char **argv){
 	if(info[3]==2)	info[12] = 1;
 
 	//Define timers for performance studies
-	const int num_timers = 4;
+	const int num_timers = 5;
 	mpi_timer timers[num_timers];
-	string global_names[num_timers] = {"Global Time", "Final Gather", "Final Triangulation", "Initialization"};
+	string global_names[num_timers] = {"Global Time", "Final Gather", "Final Triangulation", "Initialization", "Final Bisection"};
 	for(i = 0; i < num_timers; i++){
 		timers[i] = mpi_timer(global_names[i]);
 	}
@@ -325,10 +326,18 @@ int main(int argc, char **argv){
 	}
 
 
+	if(save_bisectItr && id==0)
+	{
+		timers[3].stop();
+		initial_time = timers[3].total_time;
+		itrFile.open(itrFileName.c_str());
+		itr_timer->start();
+	}
+
 	// Loop over it_bisect
 	for(it_bisect = 0; it_bisect <= num_bisections; it_bisect++)
 	{
-		if(it_bisect==num_bisections && id==0)
+		if((!save_bisectItr) && it_bisect==num_bisections && id==0)
 		{
 			timers[3].stop();
 			initial_time = timers[3].total_time;
@@ -449,12 +458,15 @@ int main(int argc, char **argv){
 				exit(1);
 			}else
 			{
+				timers[0].stop(); // Global Time Timer
+				if(!save_bisectItr)
+					timers[3].stop();
 				if(save_before_bisect && it_bisect < num_bisections)
 				{
 					string postNm = to_string(points.size());
 
 					clearRegions(id, my_regions);
-					sortPoints(id, regions, points, sort_vor, my_regions);
+					sortPoints(id, regions, points, sort_method, my_regions);
 					makeFinalTriangulations(id, flags, regions, my_regions);
 					printMyFinalTriangulation(world, my_regions, all_triangles, "triangles.dat."+postNm);
 
@@ -476,6 +488,9 @@ int main(int argc, char **argv){
 						//bdry_pts.close();
 					}
 				}
+				timers[0].start(); // Global Time Timer
+				if(!save_bisectItr)
+					timers[3].start();
 				break;
 			}
 		}
@@ -488,7 +503,7 @@ int main(int argc, char **argv){
 			if(!save_before_bisect)
 			{
 		        clearRegions(id, my_regions);
-		        sortPoints(id, regions, points, sort_vor, my_regions);
+		        sortPoints(id, regions, points, sort_method, my_regions);
 			}
 			bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 0);
 		} else {
@@ -508,11 +523,11 @@ int main(int argc, char **argv){
 	makeFinalTriangulations(id, flags, regions, my_regions);
 	timers[2].stop();
 
-	printMyFinalTriangulation(world, my_regions, all_triangles);
+	printMyFinalTriangulation(world, my_regions, all_triangles, "triangles.dat."+itrFileName);
 
 	if(id == 0){
-		ofstream end_pts("end_points.dat");
-		ofstream pt_dens("point_density.dat");
+		ofstream end_pts("end_points.dat."+itrFileName);
+		ofstream pt_dens("point_density.dat."+itrFileName);
 		//ofstream bdry_pts("boundary_points.dat");
 		for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
 			end_pts << (*point_itr) << endl;
@@ -526,7 +541,7 @@ int main(int argc, char **argv){
 		//bdry_pts.close();
 	}
 
-	//Compute average points per region for diagnostics
+/*	//Compute average points per region for diagnostics
     cout << "\nAverage points per iteration: " << my_numPts/num_sorts << endl;
 	num_avePoints = 0;
 	num_myPoints = 0;
@@ -538,12 +553,12 @@ int main(int argc, char **argv){
 	if(id == 0){
 		cout << "\nAverage points per region: " << num_avePoints << endl;
 	}
-
+*/
 	//Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
-	timers[3].start(); // Final Bisection Timer
+	timers[4].start(); // Final Bisection Timer
 	if(bisect_final) 
-		bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 1, "bisected_points.dat");
-	timers[3].stop();
+		bisectTriangulation(flags, world, my_regions, all_triangles, regions, points, 1, "bisected_points.dat."+itrFileName);
+	timers[4].stop();
 
 	//Print out final timers, for global times.
 	if(id == 0){
