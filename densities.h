@@ -80,32 +80,26 @@ double density(const pnt &p){/*{{{*/
 	//density returns the value of the density function at point p
 	//return 1.0; // Uniform density
 
-	 //Density function for Shallow Water Test Case 5
+/*	 //Density function for Shallow Water Test Case 5
 	pnt cent;
 	double r;
 	double norm;
 	double density;
 	double min_val;
 	double width, trans_cent;
-
 	cent = pnt(0.0, -0.866025403784439, 0.5);
 	cent.normalize();
-
 	width = 0.15;
 	min_val = 1.0/8.0;
 	min_val = pow(min_val,4);
 	trans_cent = 30.0*M_PI/180.0;
 	norm = 1.0/(1.0-min_val);
-
 	r = cent.dotForAngle(p);
-
 	density = ((tanh((trans_cent-r)*(1.0/width))+1.0)/2.0)/norm + min_val;
-
 	return density;
-	// */
+	 */
 
 	/* Ellipse density function.
-
 	return ellipse_density(p, 40.0, 0.0, 1.0, 0.5);
 	// */
 
@@ -114,7 +108,7 @@ double density(const pnt &p){/*{{{*/
     // */
 
     // /* Pop high resolution density function.
-    //return pop_highres_density(p); 
+    return pop_highres_density(p); 
     // */
 
 }/*}}}*/
