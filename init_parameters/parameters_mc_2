@@ -32,7 +32,7 @@
     sort_method                     = 1         # values: 0 or 1
                                                 # Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
 [scvt]
-    num_bisections                  = 0         # values: positive integer.  Number of times the point set will be bisected after convergin.
+    num_bisections                  = 2         # values: positive integer.  Number of times the point set will be bisected after convergin.
                                                 # num_pts: 12 42 162 642 2562 10242 40962 163842 655362 2621442
   bisect_final          = false   # should bisect-then-save final end_points or not. save to bisected_points.dat
 

@@ -32,12 +32,12 @@
     sort_method                     = 1         # values: 0 or 1
                                                 # Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
 [scvt]
-    num_bisections                  = 0         # values: positive integer.  Number of times the point set will be bisected after convergin.
+    num_bisections                  = 3         # values: positive integer.  Number of times the point set will be bisected after convergin.
                                                 # num_pts: 12 42 162 642 2562 10242 40962 163842 655362 2621442
   bisect_final          = false   # should bisect-then-save final end_points or not. save to bisected_points.dat
 
     [./initial]
-        initial_point_set           = 1         # values: 0, 1, 2, 3, 4, 5, or 6
+        initial_point_set           = 4         # values: 0, 1, 2, 3, 4, 5, or 6
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibonaci Grid, 4 - Monte Carlo w/ rejection, 5 - Generalized Spiral w/ rejection, 6 - Fibonaci Grid w/ rejection
         number_of_generated_points  = 15000        # values: positive integer
 
