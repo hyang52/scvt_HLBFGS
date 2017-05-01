@@ -264,6 +264,18 @@ int main(int argc, char **argv){
     } else if(points_begin == 3){
       makeFibonacciGridPoints(num_pts, points);
       cout << "\n" << num_pts << " points being created with Fibonacci Grid." << endl;
+    } else if(points_begin == 4){
+        makeMCPoints_rejection(num_pts, points);
+        cout << "\n" << num_pts <<" points being created with Monte Carlo with rejection." << endl;
+        num_pts << points.size();
+    } else if(points_begin == 5){
+        makeGeneralizedSpiralPoints_rejection(num_pts, points);
+        cout << "\n" << num_pts << " points being created with Generalized Spiral with rejection." << endl;
+        num_pts << points.size();
+    } else if(points_begin == 6){
+        makeFibonacciGridPoints_rejection(num_pts, points);
+        cout << "\n" << num_pts << " points being created with Fibonacci Grid with rejection." << endl;
+        num_pts << points.size();
     }
 
     //readBoundaries(max_bdryResol, boundary_points);
