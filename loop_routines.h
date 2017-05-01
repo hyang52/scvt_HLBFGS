@@ -1941,7 +1941,8 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 				lloyd_i.normalize();
 				lloyd_i.idx = (*point_itr).idx;
 				distr_lloyd.push_back(lloyd_i);
-				distr_bots.push_back(bots[(*point_itr).idx]);
+				//distr_bots.push_back(bots[(*point_itr).idx]);							//worse than below
+				distr_bots.push_back(tops[(*point_itr).idx].dot(*point_itr));
 			}
 		} else if((*point_itr).isBdry){
 			/*if((*point_itr).isBdry == 2){
@@ -2357,6 +2358,7 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
 		if(bot_i==0.0){
 			return 1;
 		}else{
+			myIdx_bots.push_back(bot_i);
 			myIdx_bots.push_back(bot_i);
 			myIdx_bots.push_back(bot_i);
 		}

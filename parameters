@@ -3,13 +3,13 @@
 #--------------------------------------------------#
 [HLBFGS]
     memory_number                   = 7         # number of previous iterations stored in memory for limited-memory BFGS
-    itr_File                        = QN2017043001.txt      # file to save iteration info from polar coordinates
+    itr_File                        = QN2017043000.txt      # file to save iteration info from polar coordinates
 
     [./real_tol]
         c_1                         = 1e-4      # for Quasi-Newton, function tolerance used in line-search
         c_2                         = 0.99      # for Quasi-Newton, gradient tolerance used in line-search
         f-f_tol                     = 1e-7      # for Quasi-Newton, stopping tolerance ||f^k+1 - f^k||/||f^k||. sugg val: 1e-6 ~ 1e-7
-												# In practice, 1e-6 may still return obtuse triangles/short vor edges. 1e-7 is OK in practice
+                        # In practice, 1e-6 may still return obtuse triangles/short vor edges. 1e-7 is OK in practice
         g_tol                       = 1e-4      # for Quasi-Newton, stopping tolerance ||g^k||/||f^k||
         dx_tol                      = 1e-4      # sugg val: 1e-3 to 1e-4. for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
         Lloyd_tol                   = 1.0       # sugg val: 1.0 to 0.1.  tol on ||x^k+1 - x^k||_l2 to cut bwtween Lloyd and Quasi-Newton.
@@ -32,14 +32,14 @@
     sort_method                     = 1         # values: 0 or 1
                                                 # Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
 [scvt]
-    num_bisections                  = 1         # values: positive integer.  Number of times the point set will be bisected after convergin.
+    num_bisections                  = 0         # values: positive integer.  Number of times the point set will be bisected after convergin.
                                                 # num_pts: 12 42 162 642 2562 10242 40962 163842 655362 2621442
-	bisect_final					= false		# should bisect-then-save final end_points or not. save to bisected_points.dat
+  bisect_final          = false   # should bisect-then-save final end_points or not. save to bisected_points.dat
 
     [./initial]
         initial_point_set           = 3         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
-        number_of_generated_points  = 642        # values: positive integer
+        number_of_generated_points  = 15000        # values: positive integer
 
     [../integration]
         quadrature_rule             = 2         # values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0
@@ -60,7 +60,7 @@
         iterations_with_variable_projection=0   # values: positive integer.  Num of iter to scale boundary projection from off to on over.
 
 [fileIO]
-	save_bisect_itrFile				= true		# if true, save all iterations before final bisection to itr_file
+  save_bisect_itrFile       = true    # if true, save all iterations before final bisection to itr_file
     save_before_bisect              = false     # if true, save points to
     file_io_mode                    = 'FILEIO_TXT'          # values: 'FILEIO_TXT' 'FILEIO_NETCDF' 'FILEIO_BOTH'                not used
     restart_file_handling           = 'RESTART_OVERWRITE'   # values: 'RESTART_OVERWRITE'   'RESTART_RETAIN'                    not used
