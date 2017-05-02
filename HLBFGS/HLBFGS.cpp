@@ -585,7 +585,7 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 		double xnorm = HLBFGS_DNRM2(N, x, &(*WORLD));
 		xnorm = 1 > xnorm ? 1 : xnorm;
 		double dxnorm = HLBFGS_DNRM2(N, q, &(*WORLD))*stp;
-		NEWITERATION(INFO[2], INFO[1], dxnorm, &f, g, &gnorm);
+		NEWITERATION(INFO[2], INFO[1], &dxnorm, &f, g, &gnorm);
 		//if(WORLD->rank()==0)	std::cout << "polar dxnorm = " << dxnorm << std::endl;
 		rkeep[2] = gnorm;
 		rkeep[8] = xnorm;
