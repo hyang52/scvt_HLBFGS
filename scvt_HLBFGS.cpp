@@ -112,17 +112,21 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 
 
 //////////////////////////////////////////////////////////////////////////
-void newiteration(int iter, int call_iter, double *x, double* f, double *g,  double* gnorm)
+//void newiteration(int iter, int call_iter, double *x, double* f, double *g,  double* gnorm)
+void newiteration(int iter, int call_iter, double* dxnorm, double* f, double *g,  double* gnorm)
 {
   if(id==0){
     if(it_bisect==num_bisections || save_bisectItr)
     {
       itr_timer->stop();
-      itrFile << iter << " " << call_iter << " " << *f << " " << *gnorm << " "
+      /*itrFile << iter << " " << call_iter << " " << *f << " " << *gnorm << " "
+          << initial_time + itr_timer->total_time <<"\n" ;*/
+      itrFile << iter << " " << call_iter << " " << *f << " " << *gnorm << " " << *dxnorm <<" "
           << initial_time + itr_timer->total_time <<"\n" ;
       itr_timer->start();
     }
-    std::cout << iter <<": " << call_iter <<" " << *f <<" " << *gnorm  << std::endl;
+    //std::cout << iter <<": " << call_iter <<" " << *f <<" " << *gnorm  << std::endl;
+    std::cout << iter <<": " << call_iter <<" " << *f <<" " << *gnorm  << " " << *dxnorm << " " << std::endl;
   }
 }
 
@@ -264,6 +268,18 @@ int main(int argc, char **argv){
     } else if(points_begin == 3){
       makeFibonacciGridPoints(num_pts, points);
       cout << "\n" << num_pts << " points being created with Fibonacci Grid." << endl;
+    } else if(points_begin == 4){
+        makeMCPoints_rejection(num_pts, points);
+        cout << "\n" << num_pts <<" points being created with Monte Carlo with rejection." << endl;
+        num_pts << points.size();
+    } else if(points_begin == 5){
+        makeGeneralizedSpiralPoints_rejection(num_pts, points);
+        cout << "\n" << num_pts << " points being created with Generalized Spiral with rejection." << endl;
+        num_pts << points.size();
+    } else if(points_begin == 6){
+        makeFibonacciGridPoints_rejection(num_pts, points);
+        cout << "\n" << num_pts << " points being created with Fibonacci Grid with rejection." << endl;
+        num_pts << points.size();
     }
 
     //readBoundaries(max_bdryResol, boundary_points);
@@ -387,6 +403,7 @@ int main(int argc, char **argv){
 
       if(id==0)
         cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
+        //cout << "LBFGS itr: num_feval |  f_val  |  g_norm  | dx_norm |"<< endl;
 
 
       int ret = HLBFGS(disjDistrIdx.size()*3, mem_num, &x[0], evalfunc, 0,
