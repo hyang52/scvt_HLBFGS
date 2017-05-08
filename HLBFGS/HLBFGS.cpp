@@ -36,7 +36,7 @@ void INIT_HLBFGS(double PARAMETERS[], int INFO[])
 	PARAMETERS[2] = 0.9; //gtol
 	PARAMETERS[3] = 1.0e-20; //stpmin
 	PARAMETERS[4] = 1.0e+20; //stpmax
-	PARAMETERS[5] = 1.0e-16; // ||g||/max(1,||x||)
+	PARAMETERS[5] = 1.0e-16; // |f-preSetf| / preSetf
 	PARAMETERS[6] = 1.0e-10; // ||g||
 	PARAMETERS[7] = 1.0e-10; // ||g^k||/||f^k||
 	PARAMETERS[8] = 1.0e-16; // ||f^k+1 - f^k||/||f^k||
@@ -75,8 +75,7 @@ void HLBFGS_MESSAGE(bool print, int id, const double PARAMETERS[], mpi::communic
 			std::cout << "Please check your input parameters !\n";
 			break;
 		case 1:
-			std::cout << "Convergence : ||g||/max(1,||x||) <= " << PARAMETERS[5]
-			<< std::endl;
+			std::cout << "Convergence : |f^k+1 - preSet_f| / preSet_f <=  " << PARAMETERS[5] << std::endl;
 			break;
 		case 2:
 			std::cout << "Convergence : ||g|| <=  " << PARAMETERS[6] << std::endl;
@@ -367,6 +366,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 	char task1 = 'N';
 	char task2 = 'T';
 	double prev_f;
+	double preSet_f = 1e10;
 	int i;
 
 	//////////////////////////////////////////////////////////////////////////
@@ -377,7 +377,7 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			EVALFUNC_H(N, x, INFO[2] == 0 ? 0 : prev_x, &f, g, m_hessian);
 			HLBFGS_BUILD_HESSIAN_INFO(m_hessian, INFO);
 		}
-		else if (INFO[2] == 0)
+		else if (INFO[2] == 0 && num_reset == 0)
 		{
 			EVALFUNC(N, x, 0, &f, g);
 			INFO[1]++;
@@ -516,12 +516,6 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 			}
 		}
 
-		if (INFO[2] == 0 && num_reset > 0 && f >= prev_f )
-		{
-			if(WORLD->rank()==0)	std::cout << "Convergence: cannot improve anymore!\n"<< std::endl;
-			return;
-		}
-
 		if (INFO[2] > 0 && M > 0)
 		{
 			HLBFGS_UPDATE_Second_Step(N, M, q, s, y, rho, alpha, bound,
@@ -577,11 +571,6 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		rkeep[8] = xnorm;
 
 		// The following stopping criteria should be checked in order.
-		if (gnorm / xnorm <= PARAMETERS[5])
-		{
-			HLBFGS_MESSAGE(INFO[5] != 0, 1, PARAMETERS, &(*WORLD));
-			break;
-		}
 		if (gnorm < PARAMETERS[6])
 		{
 			HLBFGS_MESSAGE(INFO[5] != 0, 2, PARAMETERS, &(*WORLD));
@@ -595,21 +584,33 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 		if (info != 1 || stp < stpmin || stp > stpmax)
 		{
 			HLBFGS_MESSAGE(INFO[5] != 0, 4, PARAMETERS, &(*WORLD));
-
+			if (std::abs( (f-preSet_f)/preSet_f ) <= PARAMETERS[5])
+			{
+				HLBFGS_MESSAGE(INFO[5] != 0, 1, PARAMETERS, &(*WORLD));
+				break;
+			}
 			if(num_reset < INFO[14]){
 				// if fail in line search, reset LBFGS
 				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0 -----------------\n";
 				cur_pos = 0;
 				INFO[2] = 0;
-				prev_f = f;
-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO);
-				HLBFGS_DAXPY(N, 1.0, q, x);
+				preSet_f = f;
 				num_reset++;
 				continue;
 			}else{
 				HLBFGS_MESSAGE(INFO[5] != 0, 5, PARAMETERS, &(*WORLD));
 				break;
 			}
+		}
+		if (std::abs( (f-prev_f)/prev_f ) <= PARAMETERS[8])
+		{
+			HLBFGS_MESSAGE(INFO[5] != 0, 8, PARAMETERS, &(*WORLD));
+			break;
+		}
+		if (dxnorm <= PARAMETERS[9])
+		{
+			HLBFGS_MESSAGE(INFO[5] != 0, 7, PARAMETERS, &(*WORLD));
+			break;
 		}
 		if (INFO[2] > INFO[4])
 		{
@@ -620,25 +621,13 @@ void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
 				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0 -----------------\n";
 				cur_pos = 0;
 				INFO[2] = 0;
-				prev_f = f;
-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO);
-				HLBFGS_DAXPY(N, 1.0, q, x);
+				preSet_f = f;
 				num_reset++;
 				continue;
 			}else{
 				HLBFGS_MESSAGE(INFO[5] != 0, 5, PARAMETERS, &(*WORLD));
 				break;
 			}
-		}
-		if (dxnorm <= PARAMETERS[9])
-		{
-			HLBFGS_MESSAGE(INFO[5] != 0, 7, PARAMETERS, &(*WORLD));
-			break;
-		}
-		if (std::abs( (f-prev_f)/prev_f ) <= PARAMETERS[8])
-		{
-			HLBFGS_MESSAGE(INFO[5] != 0, 8, PARAMETERS, &(*WORLD));
-			break;
 		}
 
 	} while (true);

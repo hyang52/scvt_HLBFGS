@@ -145,27 +145,15 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
 	{
 		return;
 	}
-
-	if (INFO[2] == 0)
-	{
-		for(int j=0; j<N/3; ++j)
-		{
-			q[3*j] = n_points[j].x - points[j].x;
-			q[3*j+1] = n_points[j].y - points[j].y;
-			q[3*j+2] = n_points[j].z - points[j].z;
-		}
 	
-	}
-	else if (INFO[2] > 0)
+	if (INFO[3] == 0 || INFO[3] == 1)
+		HLBFGS_UPDATE_Hessian(N, M, q, s, y, cur_pos, diag, INFO);
+	if (INFO[3] == 2)
 	{
-		if (INFO[3] == 0 || INFO[3] == 1)
-			HLBFGS_UPDATE_Hessian(N, M, q, s, y, cur_pos, diag, INFO);
-		if (INFO[3] == 2)
-		{
-			HLBFGS_DSCALDV(N, &bots[0], q);
-			HLBFGS_DSCAL(N, 0.5, q);
-		}
+		HLBFGS_DSCALDV(N, &bots[0], q);
+		HLBFGS_DSCAL(N, 0.5, q);
 	}
+	
 }
 
 
@@ -222,6 +210,7 @@ int main(int argc, char **argv){
 	parameter[0] = dataFile("HLBFGS/real_tol/c_1", 1e-4);
 	parameter[2] = dataFile("HLBFGS/real_tol/c_2", 0.9); 
 	parameter[7] = dataFile("HLBFGS/real_tol/g_tol", 1e-10); 
+	parameter[5] = dataFile("HLBFGS/real_tol/f-preSetf_tol", 1e-16);
 	parameter[8] = dataFile("HLBFGS/real_tol/f-f_tol", 1e-16); 
 	parameter[9] = dataFile("HLBFGS/real_tol/dx_tol", 1e-16); 
 	info[0] = dataFile("HLBFGS/int_tol/max_LS", 20);
@@ -303,8 +292,8 @@ int main(int argc, char **argv){
 	for(it_bisect = 0; it_bisect <= num_bisections; it_bisect++)
 	{
 		/////////////////////////////////////////////////////
-			// Lloyd iteration as starting up
 		it = 0;
+		/*// Lloyd iteration as starting up
 		bool stop = false;
 		do{
 			clearRegions(id, my_regions);
@@ -312,11 +301,6 @@ int main(int argc, char **argv){
 			triangulateRegions(id, flags, my_regions);
 			integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
 
-/*			if(it > max_it_no_proj){
-				proj_alpha = max((double)(it-max_it_no_proj), 0.0)/max((double)max_it_scale_alpha, 1.0);
-				projectToBoundary(proj_alpha, points, boundary_points, n_points, my_regions);
-			}
-*/
 			computeMetrics(id, points, n_points, my_l2, my_max, my_l1);
 			mpi::reduce(world, my_l2, glob_l2, std::plus<double>(), 0);
 			//mpi::reduce(world, my_max, glob_max, mpi::maximum<double>(), 0);
@@ -337,7 +321,7 @@ int main(int argc, char **argv){
 			}
 
 		}while(!stop);
-
+		*/
 		/////////////////////////////////////////////////////
 		// Quasi-Newton iteration when dx <= Lloyd_tol
 		std::vector<double> x(points.size()*3);
