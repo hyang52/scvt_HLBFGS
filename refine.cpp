@@ -41,7 +41,8 @@ int sort_method = sort_vor;
 int num_bisections;
 int num_pts;
 
-//This routine is using quasi-Newton optimization for SCVT computation. In particular, LBFGS preconditioned by Lloyd step is used.
+// this program read points from SaveVertices file, do continuous refinement, 
+// and save the refined mesh to "end_points.dat."+postNm
 int main(int argc, char **argv){
 	//Processor information and global communicator
 	//master id is always 0
@@ -50,7 +51,7 @@ int main(int argc, char **argv){
 	num_procs = world.size();
 
 	if(id==0 && argc<3)	{
-		printf("Command argument error! Run with 3 args as: ./partition_gen.exe -r 2\n");
+		printf("Command argument error! Run with 3 args as: ./refine.exe -r 2\n");
 		exit(0);
 	}
 	num_bisections = atoi(argv[2]);

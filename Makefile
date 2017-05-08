@@ -2,14 +2,14 @@ CC = mpic++
 ### config on the stampede cluster
 #BDIR = ${TACC_BOOST_MPI_DIR}
 ### config on the spear cluster
-BDIR = /lustre/home-2/hyang3/workdir/boost
-LIBS = -I${BDIR}/include/ -L${BDIR}/lib/ -lboost_mpi -lboost_serialization
+#BDIR = /lustre/home-2/hyang3/workdir/boost
+#LIBS = -I${BDIR}/include/ -L${BDIR}/lib/ -lboost_mpi -lboost_serialization
 ### config on the spear cluster
 #OptizelleDIR = /lustre/home-2/hyang3/workdir/Optizelle/install_release
 #LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
 
 ### config on laptop
-#LIBS =  -lboost_mpi -lboost_serialization
+LIBS =  -lboost_mpi -lboost_serialization
 ##OptizelleDIR = /home/huanhuan/Packages/Optizelle-1.1.2/install-release
 ##LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
 

@@ -45,8 +45,8 @@ vector<pnt> points;
 vector<pnt> n_points;
 Quadrature quadr;
 char * flags;
-int  my_numPts=0;
-int  num_sorts=0;
+//int  my_numPts=0;
+//int  num_sorts=0;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
@@ -110,19 +110,26 @@ int main(int argc, char **argv){
 
     // Setup initial point set and build regions
     if(id == 0){
-        if (points_begin == 0){
-            readPoints(num_pts, points);
-            cout << "\n" << num_pts <<" points being read in from SaveVertices." << endl;
-        } else if(points_begin == 1){
-            makeMCPoints(num_pts, points);
-            cout << "\n" << num_pts <<" points being created with Monte Carlo." << endl;
-        } else if(points_begin == 2){
-            makeGeneralizedSpiralPoints(num_pts, points);
-            cout << "\n" << num_pts << " points being created with Generalized Spiral." << endl;
-        } else if(points_begin == 3){
-            makeFibonacciGridPoints(num_pts, points);
-            cout << "\n" << num_pts << " points being created with Fibonacci Grid." << endl;
-        }
+		switch(points_begin)
+		{
+			case 0:	readPoints(num_pts, points);
+	  				cout << "\n" << num_pts <<" points being read in from SaveVertices." << endl;
+					break;
+			case 1:	makeMCPoints(num_pts, points);
+	  				cout << "\n" << num_pts <<" points being created with Monte Carlo." << endl;
+					break;
+			case 2: makeGeneralizedSpiralPoints(num_pts, points);
+	  				cout << "\n" << num_pts << " points being created with Generalized Spiral." << endl;
+					break;
+			case 3: makeFibonacciGridPoints(num_pts, points);
+	  				cout << "\n" << num_pts << " points being created with Fibonacci Grid." << endl;
+					break;
+			case 4: makeNonuniMCPoints(num_pts, points);
+	  				cout << "\n" << num_pts << " points being created with non-uniform Monte Carlo." << endl;
+					break;
+			default:cout << "\n" << " Error: give an option for initial_point_set !" << endl;
+					break;
+		}
 
         //readBoundaries(max_bdryResol, boundary_points);
 
@@ -186,9 +193,10 @@ int main(int argc, char **argv){
         }
 
         if(id==0)
-            cout << "\nLloyd itr ||  dx_l2  |  f  |  df_normPolar\n"<< endl;
+            cout << "\nLloyd itr ||  dx_l2  |  f  |  df_norm\n"<< endl;
 
         bool stop = false;
+		//if(it_bisect>0 && it_bisect<num_bisections)	stop = true;				//for NMC12OptRef, only opt on 1st and last
 
         for(it = 0; it < max_itr && !stop; it++)
         {
@@ -198,10 +206,10 @@ int main(int argc, char **argv){
                 timers[0].start();
             clearRegions(id, my_regions);
             sortPoints(id, regions, points, sort_method, my_regions);
-			for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-				my_numPts += (*region_itr).points.size();
-			}
-			num_sorts++;
+			//for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+			//	my_numPts += (*region_itr).points.size();
+			//}
+			//num_sorts++;
             triangulateRegions(id, flags, my_regions);
             integrateRegions(id, div_levs, quadr, use_barycenter, regions, my_regions, points, n_points);
 
@@ -229,7 +237,7 @@ int main(int argc, char **argv){
                     grad_norm += gradients[k].magnitude2();
                 grad_norm = sqrt(grad_norm);
 
-                double p_lat, p_lon, g_lat, g_lon;
+                /*double p_lat, p_lon, g_lat, g_lon;
                 for(int k=0; k<points.size(); ++k){
                     p_lat = points[k].getLat();
                     p_lon = points[k].getLon();
@@ -239,7 +247,7 @@ int main(int argc, char **argv){
 
                     grad_normPolar += g_lat*g_lat + g_lon*g_lon;
                 }
-                grad_normPolar = sqrt(grad_normPolar);
+                grad_normPolar = sqrt(grad_normPolar);*/
             }
     		timers[1].start(); // Global Time Timer
 
@@ -269,10 +277,10 @@ int main(int argc, char **argv){
 
             if(id==0)
             {
-                cout << it << " " << glob_l2 << " " << fval << " " << grad_normPolar << endl;
+                cout << it << " " << glob_l2 << " " << fval << " " << grad_norm << endl;
 
                 if(save_bisectItr || it_bisect==num_bisections)
-                    itrFile << it << " " << glob_l2 << " " << fval << " " << grad_normPolar << " "
+                    itrFile << it << " " << glob_l2 << " " << fval << " " << grad_norm << " "
                             << timers[3].total_time + timers[0].total_time <<"\n" ;
             }
         }
@@ -352,7 +360,7 @@ int main(int argc, char **argv){
     }
 */
 
-    printMyFinalTriangulation(world, my_regions, all_triangles);
+	printMyFinalTriangulation(world, my_regions, all_triangles, "triangles.dat."+itrFileName);
 
     if(id == 0){
         ofstream end_pts("end_points.dat."+itrFileName);
