@@ -3,7 +3,7 @@
 #--------------------------------------------------#
 [HLBFGS]
     memory_number                   = 7         # number of previous iterations stored in memory for limited-memory BFGS
-    itr_File                        = QN2017050801.txt      # file to save iteration info from polar coordinates
+    itr_File                        = QN2017051001.txt      # file to save iteration info from polar coordinates
 
     [./real_tol]
         c_1                         = 1e-4      # for Quasi-Newton, function tolerance used in line-search
@@ -18,7 +18,9 @@
                                                 # if < 1.0, Lloyd_tol = Lloyd_tolPerc * initial dx_l2
     [../int_tol]
         max_LS                      = 7         # the max number of evaluation in line-search
-        invH0_strategy              = 2         # strategy for updating initial inverse Hessian. 0: standard, 1: M1QN3 strategy, 2: Lloyd
+        invH0_strategy              = 3         # strategy for updating initial inverse Hessian. 
+												# 0: standard, 1: M1QN3 strategy, 2: Lloyd, 3: graph Laplacian
+		Tfreq						= 1			# frequency used in graph Laplacian preconditioned L-BFGS
         max_itr                     = 1000       # the max number of iterations in each single optimization, i.e. without resetting
         max_reset                   = 50        # max num of resetting LBFGS, i.e. setting iter=0 inside LBFGS
         max_restart                 = 50        # max num of restartng Lloyd_LBFGS when bad communication happen and LBFGS return 1.
@@ -38,7 +40,7 @@
     bisect_final                    = false     # should bisect-then-save final end_points or not. save to bisected_points.dat
 
     [./initial]
-        initial_point_set           = 4         # values: 0, 1, 2, or 3
+        initial_point_set           = 0         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
                                                 # 4 - Non-uniform Monte Carlo
         number_of_generated_points  = 2562       # values: positive integer

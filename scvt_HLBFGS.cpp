@@ -22,6 +22,25 @@
 #include <vector>
 #include <math.h>
 #include <assert.h>
+//#include <umfpack.h>
+//#include <klu.h>
+
+#include "Amesos_ConfigDefs.h"
+#ifdef HAVE_MPI
+#include "mpi.h"
+#include "Epetra_MpiComm.h"
+#else
+#include "Epetra_SerialComm.h"
+#endif
+#include "Epetra_Vector.h"
+#include "Epetra_Time.h"
+#include "Epetra_RowMatrix.h"
+#include "Epetra_CrsMatrix.h"
+#include "Amesos.h"
+#include "Amesos_BaseSolver.h"
+#include "Amesos_Umfpack.h"
+#include "Amesos_Lapack.h"
+#include "Teuchos_ParameterList.hpp"
 
 #include "GetPot.hpp"
 #include "HLBFGS/HLBFGS.h"
@@ -40,6 +59,7 @@ using namespace tr1;
 // Global variables
 int id, num_procs;
 mpi::communicator world;
+boost::shared_ptr<Epetra_MpiComm> comm;
 //Each processor has a list of all regions, as well as it's own regions (only one per processor currently)
 vector<region> regions;
 vector<region> my_regions;
@@ -55,6 +75,13 @@ boost::shared_ptr<mpi_timer> itr_timer;
 double initial_time;
 //int  my_numPts=0;
 //int  num_sorts=0;
+//for graph Laplacian matrix format
+int Tfreq;
+int Ap_l[2563];
+int Ai_l[100000];
+double Ax_l[100000];
+int nnz;
+boost::shared_ptr<Epetra_CrsMatrix> matrixA;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
 int div_levs;
@@ -94,8 +121,11 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 	//}
 	//num_sorts++;
 	triangulateRegions(id, flags, my_regions);
+
+	Epetra_Map map(points.size(),0,*comm);													// ingore parallel righ now
+	matrixA.reset(new Epetra_CrsMatrix(Copy,map,8));
 	inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
-		  			  my_energy, disj_grad, disj_lloyd, disj_bots);
+		  			  my_energy, disj_grad, disj_lloyd, disj_bots, *matrixA);
 	mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
 	mpi::broadcast(world, *f, 0);
 	//if(id==0) cout << "\n f ="<< *f <<endl;
@@ -157,7 +187,41 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
 		HLBFGS_DSCALDV(N, &my_bots[0], q);
 		HLBFGS_DSCAL(N, 0.5, q);
 	}
-	
+	if (INFO[3] == 3)
+	{
+		if (INFO[2] % Tfreq != 0)
+		{
+			HLBFGS_UPDATE_Hessian(N, M, q, s, y, cur_pos, diag, INFO, x, &world);
+		}else
+		{
+			Epetra_MultiVector x(matrixA->RowMap(),3);
+			Epetra_MultiVector b(matrixA->RowMap(),3);
+
+			for( int i=0 ; i < matrixA->RowMap().NumMyElements(); ++i ) 
+			{
+				int iRow = matrixA->RowMap().GID(i);
+				b.ReplaceGlobalValue (iRow, 0, q[3*iRow]);
+				b.ReplaceGlobalValue (iRow, 1, q[3*iRow+1]);
+				b.ReplaceGlobalValue (iRow, 2, q[3*iRow+2]);
+			}
+
+			Epetra_LinearProblem Problem(&(*matrixA), &x, &b);
+			Amesos_Umfpack Solver(Problem);
+			//Amesos_Lapack Solver(Problem);
+			Solver.SymbolicFactorization();
+			Solver.NumericFactorization();
+			Solver.Solve();
+
+			for( int i=0 ; i < matrixA->RowMap().NumMyElements(); ++i ) 
+			{
+				int iRow = matrixA->RowMap().GID(i);
+				q[3*iRow] = x[0][iRow];
+				q[3*iRow+1] = x[1][iRow];
+				q[3*iRow+2] = x[2][iRow];
+			}
+
+		}
+	}
 }
 
 
@@ -169,7 +233,9 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
 int main(int argc, char **argv){
 	//Processor information and global communicator
 	//master id is always 0
-	mpi::environment env(argc, argv);
+	MPI_Init(&argc, &argv);									// Epetra mpi needed by Epetra_CrsMatrix
+	mpi::environment env(argc, argv);						// boost mpi needed by original data structure
+	comm.reset(new Epetra_MpiComm(MPI_COMM_WORLD));
 	id = world.rank();
 	num_procs = world.size();
 
@@ -213,6 +279,7 @@ int main(int argc, char **argv){
 	double Lloyd_tolPerc = dataFile("HLBFGS/real_tol/Lloyd_tolPerc", 1.0);
 	int max_restart = dataFile("HLBFGS/int_tol/max_restart", 0);
 	int mem_num = dataFile("HLBFGS/memory_number", 7);
+	Tfreq = dataFile("HLBFGS/int_tol/Tfreq", 0);
 	double parameter[10];
 	int info[15];
 	//initialize
@@ -329,6 +396,7 @@ int main(int argc, char **argv){
 			itrFile.open(itrFileName.c_str());
 			itr_timer->start();
 		}
+		
 		//if(it_bisect>0 && it_bisect<num_bisections)	max_restart=-1;				//for NMC12OptRef test, only opt on 1st and last
 		//else max_restart=50;
 
@@ -536,6 +604,7 @@ int main(int argc, char **argv){
 		}
 	}
 
+  	MPI_Finalize();
 	return 0;
 }
 

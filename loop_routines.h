@@ -13,6 +13,7 @@
 #ifndef LOOP_ROUTINES_H_
 #define LOOP_ROUTINES_H_
 
+#include "Epetra_CrsMatrix.h"
 #include <tr1/unordered_set>
 #include "Triangle/triangle.h"
 #include "setup_routines.h"
@@ -1780,7 +1781,8 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 
 void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter,
                     vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points,
-                    double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_lloyd, vector<double>& distr_bots){/*{{{*/
+                    double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_lloyd, vector<double>& distr_bots,
+					Epetra_CrsMatrix& A){/*{{{*/
     // Integrate Voronoi cells inside of my region
     // Every region updates all points that are closer to their region center than any other region center.
     // This ensures that each point is only updated once.
@@ -1819,6 +1821,12 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
         tops[i] = pnt(0.0,0.0,0.0,0,i);
         bots[i] = 0.0;
     }
+
+	vector<vector<double>> Bx2D;
+  	Bx2D.resize(points.size());
+  	for (int i = 0; i < points.size(); ++i){
+    	Bx2D[i].resize(points.size());
+	}
 
     for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
         for(tri_itr = (*region_itr).triangles.begin(); tri_itr != (*region_itr).triangles.end(); ++tri_itr){
@@ -1884,13 +1892,15 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     sign = isCcw(a,ab,ccenter);
                     energs[a.idx] += energ_val*sign;
                     tops[a.idx] += top_val*sign;
-                    bots[a.idx] += bot_val*sign;
+                    bots[a.idx] += bot_val*sign;					
+					Bx2D[b.idx][a.idx] += bot_val*sign;
                     //Triangle 2 - a ccenter ca
                     divideIntegrate(div_levs,quadr,a,a,ccenter,ca,energ_val,top_val,bot_val);
                     sign = isCcw(a,ccenter,ca);
                     energs[a.idx] += energ_val*sign;
                     tops[a.idx] += top_val*sign;
                     bots[a.idx] += bot_val*sign;
+					Bx2D[c.idx][a.idx] += bot_val*sign;
                 }
 
                 if(b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region)){
@@ -1900,12 +1910,14 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     energs[b.idx] += energ_val*sign;
                     tops[b.idx] += top_val*sign;
                     bots[b.idx] += bot_val*sign;
+					Bx2D[c.idx][b.idx] += bot_val*sign;
                     //Triangle 2 - b ccenter ab
                     divideIntegrate(div_levs,quadr,b,b,ccenter,ab,energ_val,top_val,bot_val);
                     sign = isCcw(b,ccenter,ab);
                     energs[b.idx] += energ_val*sign;
                     tops[b.idx] += top_val*sign;
                     bots[b.idx] += bot_val*sign;
+					Bx2D[a.idx][b.idx] += bot_val*sign;
                 }
 
                 if(c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region)){
@@ -1915,12 +1927,14 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     energs[c.idx] += energ_val*sign;
                     tops[c.idx] += top_val*sign;
                     bots[c.idx] += bot_val*sign;
+					Bx2D[a.idx][c.idx] += bot_val*sign;
                     //Triangle 2 - c ccenter bc
                     divideIntegrate(div_levs,quadr,c,c,ccenter,bc,energ_val,top_val,bot_val);
                     sign = isCcw(c,ccenter,bc);
                     energs[c.idx] += energ_val*sign;
                     tops[c.idx] += top_val*sign;
                     bots[c.idx] += bot_val*sign;
+					Bx2D[b.idx][c.idx] += bot_val*sign;
                 }
             }
         }
@@ -1953,9 +1967,39 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
         }
     }
 
+	double * Values = new double[20];
+	int * Indices = new int[20];
+	int numEntries, iRow;
+	for( int i=0 ; i<A.RowMap().NumMyElements(); ++i ) 
+	{
+		iRow = A.RowMap().GID(i);;
+		Indices[0] = iRow;
+		numEntries = 1;
+
+		//Values[0] = 2.0*tops[iRow].dot(points[iRow]);
+		Values[0] = 0.0;
+		for ( int j=0; j<points.size(); ++j) 
+		{ 	
+			Values[0] += Bx2D[j][iRow] + Bx2D[iRow][j];
+
+			if(j != iRow && Bx2D[j][iRow] != 0.0)
+			{
+				Values[numEntries] = ( Bx2D[j][iRow]+Bx2D[iRow][j] );  // have a bug, I think it should be a positive sign
+				Indices[numEntries] = j;
+				numEntries++;
+			}
+		}
+		A.InsertGlobalValues(iRow, numEntries, Values, Indices);
+	}
+
+	A.FillComplete();
+	delete[] Indices;
+	delete[] Values;
+
     delete(tops);
     delete(bots);
     delete(energs);
+	
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
