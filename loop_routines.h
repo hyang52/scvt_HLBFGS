@@ -1823,7 +1823,8 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 	distr_grad.clear();
 	distr_nPoints.clear();
 	for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-		my_bots[(*point_itr).idx] = bots[(*point_itr).idx];
+		//my_bots[(*point_itr).idx] = bots[(*point_itr).idx];
+		my_bots[(*point_itr).idx] = tops[(*point_itr).idx].dot(*point_itr);
 		// Ignoring boundary conditions at this moment
 		my_energy += energs[(*point_itr).idx];
 		if(!(*point_itr).isBdry){

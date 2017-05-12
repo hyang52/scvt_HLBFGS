@@ -71,6 +71,7 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 	glob_bots.resize(N/3);
 
 	clearRegions(id, my_regions);
+	points.clear();
 	for(int i=0; i<N/3; ++i)
 	{
 		pNm = sqrt(x[3*i]*x[3*i] + x[3*i+1]*x[3*i+1] + x[3*i+2]*x[3*i+2]);
@@ -79,7 +80,7 @@ void evalfunc(int N, double* x, double *prev_x, double* f, double* g)
 		x[3*i+2] /= pNm;
 		p.x = x[3*i]; p.y = x[3*i+1]; p.z = x[3*i+2];
 		p.idx = i;
-		points[i]=p;
+		points.push_back(p);
 	}
 
 	sortPoints(id, regions, points, sort_method, my_regions);
@@ -230,18 +231,28 @@ int main(int argc, char **argv){
 
 	// Setup initial point set and build regions
 	if(id == 0){
-		if (points_begin == 0){
-			readPoints(num_pts, points);
-			cout << "\n" << num_pts <<" points being read in from SaveVertices." << endl;
-		} else if(points_begin == 1){
-			makeMCPoints(num_pts, points);
-			cout << "\n" << num_pts <<" points being created with Monte Carlo." << endl;
-		} else if(points_begin == 2){
-			makeGeneralizedSpiralPoints(num_pts, points);
-			cout << "\n" << num_pts << " points being created with Generalized Spiral." << endl;
-		} else if(points_begin == 3){
-			makeFibonacciGridPoints(num_pts, points);
-			cout << "\n" << num_pts << " points being created with Fibonacci Grid." << endl;
+		switch(points_begin)
+		{
+			case 0:	readPoints(num_pts, points);
+	  				cout << "\n" << num_pts <<" points being read in from SaveVertices." << endl;
+					break;
+			case 1:	makeMCPoints(num_pts, points);
+	  				cout << "\n" << num_pts <<" points being created with Monte Carlo." << endl;
+					break;
+			case 2: makeGeneralizedSpiralPoints(num_pts, points);
+	  				cout << "\n" << num_pts << " points being created with Generalized Spiral." << endl;
+					break;
+			case 3: makeFibonacciGridPoints(num_pts, points);
+	  				cout << "\n" << num_pts << " points being created with Fibonacci Grid." << endl;
+					break;
+			case 4: makeNonuniMCPoints(num_pts, points);
+	  				cout << "\n" << num_pts << " points being created with non-uniform Monte Carlo." << endl;
+					break;
+			//case 5: makeFibonacciGridPoints_rejection(num_pts, points);
+	  		//		cout << "\n" << num_pts << " points being created with non-uniform Fibonacci Grid." << endl;
+			//		break;
+			default:cout << "\n" << " Error: give an option for initial_point_set !" << endl;
+					break;
 		}
 
 		//readBoundaries(max_bdryResol, boundary_points);
