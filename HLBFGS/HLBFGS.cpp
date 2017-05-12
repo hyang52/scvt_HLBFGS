@@ -84,11 +84,11 @@ void HLBFGS_MESSAGE(bool print, int id, const double PARAMETERS[], mpi::communic
 			std::cout << "Convergence : ||g^k|| / f^k <=  " << PARAMETERS[7] << std::endl;
 			break;
 		case 4:
-			std::cout << "Warning: linesearch cannot improve anymore!\n";
+			std::cout << "Warning: linesearch cannot improve anymore, or you may have improper input parameters for LS!\n";
 			break;
 		case 5:
 			std::cout << "************Exceeds max resetting." << std::flush;
-			std::cout <<" If still not convergent, you may need to relax Lloyd_tol or set larger max_reset. \n";
+			std::cout <<" If still not convergent, you may need to use better initial guess. \n";
 			break;
 		case 6:
 			std::cout << "Exceeds max iteration \n"<< std::endl;
@@ -522,15 +522,15 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 			}
 		}
 
-		if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q, &(*WORLD)) >= 0.)
+		/*if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q, &(*WORLD)) >= 0.)
 		{
-			std::cout<<"gDotq = " << HLBFGS_DDOT(N, g, q, &(*WORLD)) << std::endl;
+			//std::cout<<"gDotq = " << HLBFGS_DDOT(N, g, q, &(*WORLD)) << std::endl;
 		 	HLBFGS_DAXPY(N, 1.0, q, x);
 			EVALFUNC(N, x, 0, &f, g);
 			INFO[1]++;
 			num_reset++;
 		 	continue;
-		}
+		}*/
 
 		if (INFO[2] > 0 && M > 0)
 		{
@@ -585,25 +585,14 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 		double xnorm = HLBFGS_DNRM2(N, x, &(*WORLD));
 		xnorm = 1 > xnorm ? 1 : xnorm;
 		double dxnorm = HLBFGS_DNRM2(N, q, &(*WORLD))*stp;
-		//if(WORLD->rank()==0)	std::cout << "polar dxnorm = " << dxnorm << std::endl;
 		rkeep[2] = gnorm;
 		rkeep[8] = xnorm;
 
 		// The following stopping criteria should be checked in order.
-		if (gnorm < PARAMETERS[6])
+		if (info != 1)
 		{
-			HLBFGS_MESSAGE(INFO[5] != 0, 2, PARAMETERS, &(*WORLD));
-			break;
-		}
-		if (gnorm/f <= PARAMETERS[7])
-		{
-			HLBFGS_MESSAGE(INFO[5] != 0, 3, PARAMETERS, &(*WORLD));
-			break;
-		}
-		if (info != 1 || stp < stpmin || stp > stpmax)
-		{
-			//if(WORLD->rank()==0)	std::cout << "info from LS:" << info << std::endl;
 			HLBFGS_MESSAGE(INFO[5] != 0, 4, PARAMETERS, &(*WORLD));
+
 			if (std::abs( (f-preSet_f)/preSet_f ) <= PARAMETERS[5])
 			{
 				HLBFGS_MESSAGE(INFO[5] != 0, 1, PARAMETERS, &(*WORLD));
@@ -623,6 +612,16 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 				break;
 			}
 		}
+		if (gnorm < PARAMETERS[6])
+		{
+			HLBFGS_MESSAGE(INFO[5] != 0, 2, PARAMETERS, &(*WORLD));
+			break;
+		}
+		if (gnorm/f <= PARAMETERS[7])
+		{
+			HLBFGS_MESSAGE(INFO[5] != 0, 3, PARAMETERS, &(*WORLD));
+			break;
+		}
 		if (std::abs( (f-prev_f)/prev_f ) <= PARAMETERS[8])
 		{
 			HLBFGS_MESSAGE(INFO[5] != 0, 8, PARAMETERS, &(*WORLD));
@@ -636,19 +635,7 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 		if (INFO[2] > INFO[4])
 		{
 			HLBFGS_MESSAGE(INFO[5] != 0, 6, PARAMETERS, &(*WORLD));
-
-			if(num_reset < INFO[14]){
-				// if reach max_itr, reset LBFGS
-				if(WORLD->rank()==0)	std::cout << "--------------Reseting HLBFGS: let itr=0 -----------------\n";
-				cur_pos = 0;
-				INFO[2] = 0;
-				preSet_f = f;
-				num_reset++;
-				continue;
-			}else{
-				HLBFGS_MESSAGE(INFO[5] != 0, 5, PARAMETERS, &(*WORLD));
-				break;
-			}
+			break;
 		}
 
 	} while (true);
