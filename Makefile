@@ -1,11 +1,11 @@
 CC = mpic++
 
 ### config on the stampede cluster
-BDIR = ${TACC_BOOST_MPI_DIR}
-LIBS = -I${BDIR}/include/ -L${BDIR}/lib/ -lboost_mpi -lboost_serialization
-LIBS += -I${TACC_TRILINOS_INC} -L${TACC_TRILINOS_LIB}
-LIBS += -lamesos -lepetraext -ltriutils -lepetra
-LIBS += /opt/apps/intel15/mvapich2_2_1/phdf5/1.8.16/x86_64/lib/libhdf5.so
+#BDIR = ${TACC_BOOST_MPI_DIR}
+#LIBS = -I${BDIR}/include/ -L${BDIR}/lib/ -lboost_mpi -lboost_serialization
+#LIBS += -I${TACC_TRILINOS_INC} -L${TACC_TRILINOS_LIB}
+#LIBS += -lamesos -lepetraext -ltriutils -lepetra
+#LIBS += /opt/apps/intel15/mvapich2_2_1/phdf5/1.8.16/x86_64/lib/libhdf5.so
 
 ### config on the spear cluster
 #BDIR = /lustre/home-2/hyang3/workdir/boost
@@ -15,13 +15,13 @@ LIBS += /opt/apps/intel15/mvapich2_2_1/phdf5/1.8.16/x86_64/lib/libhdf5.so
 #LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
 
 ### config on laptop
-#LIBS =  -lboost_mpi -lboost_serialization
+LIBS =  -lboost_mpi -lboost_serialization
+LIBS += -I/home/huanhuan/Packages/trilinos/trilinos-opt-install/include
+LIBS += -L/home/huanhuan/Packages/trilinos/trilinos-opt-install/lib
+LIBS += -lamesos -lepetraext -ltriutils -lepetra -lteuchos
+LIBS +=  /usr/local/lib/libz.so /usr/lib/libumfpack.so /usr/lib/libamd.so /usr/lib/lapack/liblapack.so /usr/lib/libblas/libblas.so
 ##OptizelleDIR = /home/huanhuan/Packages/Optizelle-1.1.2/install-release
 ##LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
-#LIBS += -I/home/huanhuan/Packages/trilinos/trilinos-opt-install/include
-#LIBS += -L/home/huanhuan/Packages/trilinos/trilinos-opt-install/lib
-#LIBS += -lamesos -lepetraext -ltriutils -lepetra -lteuchos
-#LIBS +=  /usr/local/lib/libz.so /usr/lib/libumfpack.so /usr/lib/libamd.so /usr/lib/lapack/liblapack.so /usr/lib/libblas/libblas.so
 
 
 ifeq ($(NETCDF),yes)

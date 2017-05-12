@@ -8,20 +8,18 @@
     [./real_tol]
         c_1                         = 1e-4      # for Quasi-Newton, function tolerance used in line-search
         c_2                         = 0.99      # for Quasi-Newton, gradient tolerance used in line-search
+        f-preSetf_tol               = 1e-7      # for Quasi-Newton, stopping tolerance |f^k+1 - preSet_f| / preSet_f. sugg val: 1e-6 ~ 1e-7
         g_tol                       = 1e-4      # for Quasi-Newton, stopping tolerance ||g^k||/f^k. 1e-3 seems not enough for good quality
-        f-preSetf_tol               = 1e-7      # for Quasi-Newton, stopping tolerance ||f^k+1 - preSet_f|| / preSet_f. sugg val: 1e-6 ~ 1e-7
-        f-f_tol                     = 1e-8      # for Quasi-Newton, stopping tolerance ||f^k+1 - preSet_f|| / preSet_f. sugg val: 1e-6 ~ 1e-7
+        f-f_tol                     = 0.0 	    # for Quasi-Newton, stopping tolerance |f^k+1 - f^k| / f^k. sugg val: <= 1e-7
                                                 # In practice, 1e-6 may still return obtuse triangles/short vor edges. 1e-7 is OK in practice
         dx_tol                      = 1e-4      # sugg val: 1e-3 to 1e-4. for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
-        Lloyd_tol                   = 1.0       # sugg val: 1.0 to 0.1.  tol on ||x^k+1 - x^k||_l2 to cut bwtween Lloyd and Quasi-Newton.
-        Lloyd_tolPerc               = 1.0       # sugg val: 0 to 1  perc tol on ||x^k+1 - x^k||_l2 to cut bwtween Lloyd and Quasi-Newton.
-                                                # if < 1.0, Lloyd_tol = Lloyd_tolPerc * initial dx_l2
+
     [../int_tol]
         max_LS                      = 7         # the max number of evaluation in line-search
         invH0_strategy              = 3         # strategy for updating initial inverse Hessian.
                                                 # 0: standard, 1: M1QN3 strategy, 2: Lloyd, 3: graph Laplacian
         Tfreq                       = 1         # frequency used in graph Laplacian preconditioned L-BFGS
-        max_itr                     = 1000       # the max number of iterations in each single optimization, i.e. without resetting
+        max_itr                     = 5000       # the max number of iterations in each single optimization, i.e. without resetting
         max_reset                   = 50        # max num of resetting LBFGS, i.e. setting iter=0 inside LBFGS
         max_restart                 = 50        # max num of restartng Lloyd_LBFGS when bad communication happen and LBFGS return 1.
 
