@@ -325,7 +325,8 @@ void makeNonuniMCPoints(int n, vector<pnt>& points){/*{{{*/
         p.isBdry = 0;
         p.normalize();
 
-        if(max(density(p),pow(1.0/5.0,4)) >= randRho){
+        //if(max(density(p),pow(1.0/5.0,4)) >= randRho){
+        if(density(p) >= randRho){
             points.push_back(p);
             i++;
         }

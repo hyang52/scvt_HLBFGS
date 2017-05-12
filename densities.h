@@ -91,11 +91,11 @@ double density(const pnt &p){/*{{{*/
     // */
 
     // /* Pop high resolution density function.
-    //return pop_highres_density(p);
+    return pop_highres_density(p);
     // */
 
      //Density function for Shallow Water Test Case 5
-    pnt cent;
+    /*pnt cent;
     double r;
     double norm;
     double density;
@@ -110,7 +110,7 @@ double density(const pnt &p){/*{{{*/
     norm = 1.0/(1.0-min_val);
     r = cent.dotForAngle(p);
     density = (tanh((trans_cent-r)/width)+1.0)/2.0*norm + min_val;
-    return density;
+    return density;*/
 
 
 }/*}}}*/
