@@ -18,8 +18,8 @@ CC = mpic++
 LIBS =  -lboost_mpi -lboost_serialization
 LIBS += -I/home/huanhuan/Packages/trilinos/trilinos-opt-install/include
 LIBS += -L/home/huanhuan/Packages/trilinos/trilinos-opt-install/lib
-LIBS += -lamesos -lepetraext -ltriutils -lepetra -lteuchos
-LIBS +=  /usr/local/lib/libz.so /usr/lib/libumfpack.so /usr/lib/libamd.so /usr/lib/lapack/liblapack.so /usr/lib/libblas/libblas.so
+LIBS += -lamesos -lepetraext -ltriutils -lepetra -lteuchos -laztecoo -lifpack -lml -lzoltan
+LIBS +=  /usr/local/lib/libz.so /home/huanhuan/Packages/ParMetis-3.2.0/libparmetis.a /home/huanhuan/Packages/ParMetis-3.2.0/libmetis.a /usr/lib/libumfpack.so /usr/lib/libamd.so /usr/lib/lapack/liblapack.so /usr/lib/libblas/libblas.so
 ##OptizelleDIR = /home/huanhuan/Packages/Optizelle-1.1.2/install-release
 ##LIBS += -I$(OptizelleDIR)/include/ -L$(OptizelleDIR)/lib/ -loptizelle -ljson
 

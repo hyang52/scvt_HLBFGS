@@ -387,6 +387,8 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 		{
 			EVALFUNC(N, x, 0, &f, g);
 			INFO[1]++;
+			gnorm = HLBFGS_DNRM2(N, g, &(*WORLD));
+			NEWITERATION(INFO[2], INFO[1], x, &f, g, &gnorm);
 		}
 
 		if (INFO[2] > 0 && M > 0)
@@ -522,15 +524,15 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 			}
 		}
 
-		/*if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q, &(*WORLD)) >= 0.)
+		if (INFO[2] == 0 && HLBFGS_DDOT(N, g, q, &(*WORLD)) >= 0.)
 		{
-			//std::cout<<"gDotq = " << HLBFGS_DDOT(N, g, q, &(*WORLD)) << std::endl;
+			std::cout<<"gDotq = " << HLBFGS_DDOT(N, g, q, &(*WORLD)) << std::endl;
 		 	HLBFGS_DAXPY(N, 1.0, q, x);
 			EVALFUNC(N, x, 0, &f, g);
 			INFO[1]++;
 			num_reset++;
 		 	continue;
-		}*/
+		}
 
 		if (INFO[2] > 0 && M > 0)
 		{
@@ -548,7 +550,11 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 		if (INFO[2] == 0)
 		{
 			gnorm = HLBFGS_DNRM2(N, g, &(*WORLD));
-			stp = 1.0;// / gnorm;
+			//stp = 1.0;// / gnorm;
+			if(gnorm > 1)
+				stp = 1.0 / gnorm;
+			else
+				stp = 1;
 		}
 		else
 		{
@@ -566,9 +572,12 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 			if (blinesearch)
 			{
 				ret = EVALFUNC(N, x, prev_x, &f, g);
+
+				INFO[1]++;
+				gnorm = HLBFGS_DNRM2(N, g, &(*WORLD));
+				NEWITERATION(INFO[2], INFO[1], x, &f, g, &gnorm);
 				if(ret == 1)
 					return 1;
-				INFO[1]++;
 			}
 
 			if (INFO[9] == 1 && prev_f > f) //modify line search to avoid too many function calls
@@ -579,9 +588,7 @@ int HLBFGS(int N, int M, double *x, int EVALFUNC(int, double*, double*,
 
 		} while (blinesearch);
 
-		gnorm = HLBFGS_DNRM2(N, g, &(*WORLD));
 		INFO[2]++;
-		NEWITERATION(INFO[2], INFO[1], x, &f, g, &gnorm);
 		double xnorm = HLBFGS_DNRM2(N, x, &(*WORLD));
 		xnorm = 1 > xnorm ? 1 : xnorm;
 		double dxnorm = HLBFGS_DNRM2(N, q, &(*WORLD))*stp;

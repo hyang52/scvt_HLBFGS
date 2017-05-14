@@ -36,9 +36,8 @@
 #include "Epetra_CrsMatrix.h"
 #include "Amesos.h"
 #include "Amesos_BaseSolver.h"
-//#include "Amesos_Umfpack.h"
+#include "Amesos_Umfpack.h"
 #include "Amesos_Lapack.h"
-#include "Teuchos_ParameterList.hpp"
 
 #include "GetPot.hpp"
 #include "HLBFGS/HLBFGS.h"
@@ -75,10 +74,6 @@ double initial_time;
 //int  num_sorts=0;
 //for graph Laplacian matrix format
 int Tfreq;
-int Ap_l[2563];
-int Ai_l[100000];
-double Ax_l[100000];
-int nnz;
 boost::shared_ptr<Epetra_CrsMatrix> matrixA;
 // Global constant parameters: value given in data file: parameters
 int sort_method;
@@ -121,7 +116,7 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
     triangulateRegions(id, flags, my_regions);
 
     Epetra_Map map((int)points.size(),0,*comm);                                                  // ingore parallel righ now
-    matrixA.reset(new Epetra_CrsMatrix(Copy,map,8));
+    matrixA.reset(new Epetra_CrsMatrix(Copy,map,10));
     inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
                       my_energy, disj_grad, disj_lloyd, disj_bots, *matrixA);
     mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
@@ -171,7 +166,7 @@ void HLBFGS_DSCALDV(const int n, const double *a, double *y)
 
 //////////////////////////////////////////////////////////////////////////
 void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
-               int cur_pos, double *diag, int INFO[], double *x, mpi::communicator* comm=0)
+               int cur_pos, double *diag, int INFO[], double *x, mpi::communicator* mpicomm=0)
 {
     if (M <= 0)
     {
@@ -192,32 +187,28 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
             HLBFGS_UPDATE_Hessian(N, M, q, s, y, cur_pos, diag, INFO, x, &world);
         }else
         {
-            Epetra_MultiVector x(matrixA->RowMap(),3);
+            Epetra_MultiVector x(matrixA->ColMap(),3);
             Epetra_MultiVector b(matrixA->RowMap(),3);
 
-            for( int i=0 ; i < matrixA->RowMap().NumMyElements(); ++i )
+            for( int i=0 ; i < N/3; ++i )
             {
-                int iRow = matrixA->RowMap().GID(i);
-                b.ReplaceGlobalValue (iRow, 0, q[3*iRow]);
-                b.ReplaceGlobalValue (iRow, 1, q[3*iRow+1]);
-                b.ReplaceGlobalValue (iRow, 2, q[3*iRow+2]);
+				int iRow = disjDistrIdx[i];
+                b.ReplaceGlobalValue (iRow, 0, q[3*i]);
+                b.ReplaceGlobalValue (iRow, 1, q[3*i+1]);
+                b.ReplaceGlobalValue (iRow, 2, q[3*i+2]);
             }
 
-            Epetra_LinearProblem Problem(&(*matrixA), &x, &b);
-            //Amesos_Umfpack Solver(Problem);
-            Amesos_Lapack Solver(Problem);
-            Solver.SymbolicFactorization();
-            Solver.NumericFactorization();
-            Solver.Solve();
+			systemSolve(*comm, *matrixA, x, b);
 
-            for( int i=0 ; i < matrixA->RowMap().NumMyElements(); ++i )
+            for( int i=0 ; i < N/3; ++i )
             {
-                int iRow = matrixA->RowMap().GID(i);
-                q[3*iRow] = x[0][iRow];
-                q[3*iRow+1] = x[1][iRow];
-                q[3*iRow+2] = x[2][iRow];
+                int iLoc = matrixA->LCID(disjDistrIdx[i]);
+                q[3*i] = x[0][iLoc];
+                q[3*i+1] = x[1][iLoc];
+                q[3*i+2] = x[2][iLoc];
             }
 
+			//x.Print(cout);
         }
     }
 }
@@ -292,7 +283,7 @@ int main(int argc, char **argv){
     info[3] = dataFile("HLBFGS/int_tol/invH0_strategy", 0);
     info[4] = dataFile("HLBFGS/int_tol/max_itr", 100000);
     info[14] = dataFile("HLBFGS/int_tol/max_reset", 0);
-    if(info[3]==2)  info[12] = 1;
+    if(info[3]==2 || info[3]==3)  info[12] = 1;
 
     //Define timers for performance studies
     const int num_timers = 5;

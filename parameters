@@ -10,12 +10,12 @@
         c_2                         = 0.99      # for Quasi-Newton, gradient tolerance used in line-search
         f-preSetf_tol               = 1e-7      # for Quasi-Newton, stopping tolerance |f^k+1 - preSet_f| / preSet_f. sugg val: 1e-6 ~ 1e-7
         g_tol                       = 1e-4      # for Quasi-Newton, stopping tolerance ||g^k||/f^k. 1e-3 seems not enough for good quality
-        f-f_tol                     = 0.0 	    # for Quasi-Newton, stopping tolerance |f^k+1 - f^k| / f^k. sugg val: <= 1e-7
+        f-f_tol                     = 0.0       # for Quasi-Newton, stopping tolerance |f^k+1 - f^k| / f^k. sugg val: <= 1e-7
                                                 # In practice, 1e-6 may still return obtuse triangles/short vor edges. 1e-7 is OK in practice
         dx_tol                      = 1e-4      # sugg val: 1e-3 to 1e-4. for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
 
     [../int_tol]
-        max_LS                      = 7         # the max number of evaluation in line-search
+        max_LS                      = 5         # the max number of evaluation in line-search
         invH0_strategy              = 3         # strategy for updating initial inverse Hessian.
                                                 # 0: standard, 1: M1QN3 strategy, 2: Lloyd, 3: graph Laplacian
         Tfreq                       = 1         # frequency used in graph Laplacian preconditioned L-BFGS
@@ -38,10 +38,10 @@
     bisect_final                    = false     # should bisect-then-save final end_points or not. save to bisected_points.dat
 
     [./initial]
-        initial_point_set           = 4         # values: 0, 1, 2, or 3
+        initial_point_set           = 3         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
                                                 # 4 - Non-uniform Monte Carlo
-        number_of_generated_points  = 2562       # values: positive integer
+        number_of_generated_points  = 642       # values: positive integer
 
     [../integration]
         quadrature_rule             = 2         # values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0
