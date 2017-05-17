@@ -1778,7 +1778,7 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 }/*}}}*/
 
 
-void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter,
+int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter,
                     vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points,
                     double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_lloyd, vector<double>& distr_bots){/*{{{*/
     // Integrate Voronoi cells inside of my region
@@ -1805,6 +1805,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
     vector<tri>::iterator tri_itr;
     vector<pnt>::const_iterator point_itr;
     vector<int>::iterator neighbor_itr;
+    bool globDelau, takeA, takeB, takeC;
 
     #ifdef _DEBUG
         cerr << "Integrating regions " << id << endl;
@@ -1849,6 +1850,10 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     }
                 }
                 ccenter.normalize();
+                // This is a weak check on global Delaunay. The user can set a more robust check w.r.t different sort_methods.
+                globDelau = true;
+                if(ccenter.dotForAngle((*region_itr).center) + ccenter.dotForAngle(a) > (*region_itr).radius)
+                    globDelau = false;
 
                 a_dist_to_region = a.dotForAngle((*region_itr).center);
                 b_dist_to_region = b.dotForAngle((*region_itr).center);
@@ -1878,7 +1883,17 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     }
                 }
 
-                if(a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region)){
+                takeA = a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region);
+                takeB = b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region);
+                takeC = c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region);
+                //if(!globDelau)
+                //{   cout<<" take tri ? : " << takeA <<" " <<takeB <<" "<< takeC <<endl;}
+                if((takeA || takeB || takeC) && !globDelau)
+                {  // cout<<" fake tri: " << vi1 <<" " <<vi2 <<" "<< vi3 <<endl;
+                    return 1;
+                }
+
+                if(takeA){
                     //Triangle 1 - a ab ccenter
                     divideIntegrate(div_levs,quadr,a,a,ab,ccenter,energ_val,top_val,bot_val);
                     sign = isCcw(a,ab,ccenter);
@@ -1893,7 +1908,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     bots[a.idx] += bot_val*sign;
                 }
 
-                if(b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region)){
+                if(takeB){
                     //Triangle 1 - b bc ccenter
                     divideIntegrate(div_levs,quadr,b,b,bc,ccenter,energ_val,top_val,bot_val);
                     sign = isCcw(b,bc,ccenter);
@@ -1908,7 +1923,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     bots[b.idx] += bot_val*sign;
                 }
 
-                if(c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region)){
+                if(takeC){
                     //Triangle 1 - c ca ccenter
                     divideIntegrate(div_levs,quadr,c,c,ca,ccenter,energ_val,top_val,bot_val);
                     sign = isCcw(c,ca,ccenter);
@@ -1960,7 +1975,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
     #endif
-    return;
+    return 0;
 }/*}}}*/
 
 
