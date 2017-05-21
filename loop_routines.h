@@ -1852,7 +1852,7 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                 ccenter.normalize();
                 // This is a weak check on global Delaunay. The user can set a more robust check w.r.t different sort_methods.
                 globDelau = true;
-                if(ccenter.dotForAngle((*region_itr).center) + ccenter.dotForAngle(a) > (*region_itr).radius)
+                if(min(M_PI, ccenter.dotForAngle((*region_itr).center) + ccenter.dotForAngle(a)) > (*region_itr).input_radius)
                     globDelau = false;
 
                 a_dist_to_region = a.dotForAngle((*region_itr).center);
@@ -1886,11 +1886,12 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                 takeA = a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region);
                 takeB = b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region);
                 takeC = c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region);
-                //if(!globDelau)
-                //{   cout<<" take tri ? : " << takeA <<" " <<takeB <<" "<< takeC <<endl;}
                 if((takeA || takeB || takeC) && !globDelau)
-                {  // cout<<" fake tri: " << vi1 <<" " <<vi2 <<" "<< vi3 <<endl;
-                    return 1;
+                {    //return 1;
+                    if(id==0){
+                        cout << "\n Warning: You are using bad partition/sort_method,"
+                             << "or the number of points on each processor is not enough!\n " << endl;
+                    }
                 }
 
                 if(takeA){
@@ -2315,23 +2316,23 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-            comms.resize((*region_itr).neighbors.size());
-            comms2.resize((*region_itr).neighbors.size());
-            comms3.resize((*region_itr).neighbors.size());
+            comms.resize((*region_itr).neighbors2.size());
+            comms2.resize((*region_itr).neighbors2.size());
+            comms3.resize((*region_itr).neighbors2.size());
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
-                comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_grads_out);
-                comms2[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_lloyds_out);
-                comms3[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_bots_out);
+            for(int i = 0; i < (*region_itr).neighbors2.size(); i++){
+                comms[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_grads_out);
+                comms2[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_lloyds_out);
+                comms3[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_bots_out);
             }
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
+            for(int i = 0; i < (*region_itr).neighbors2.size(); i++){
                 temp_grads_in.clear();
                 temp_lloyds_in.clear();
                 temp_bots_in.clear();
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_grads_in);
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_lloyds_in);
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_bots_in);
+                world.recv((*region_itr).neighbors2.at(i), msg_points, temp_grads_in);
+                world.recv((*region_itr).neighbors2.at(i), msg_points, temp_lloyds_in);
+                world.recv((*region_itr).neighbors2.at(i), msg_points, temp_bots_in);
 
                 for(int j=0; j < temp_grads_in.size(); ++j){
                     temp_globGrads.at(temp_grads_in[j].idx) = temp_grads_in[j];
@@ -2340,9 +2341,9 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
                 }
             }
 
-            mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors.size()]));
-            mpi::wait_all(&comms2[0],&(comms2[(*region_itr).neighbors.size()]));
-            mpi::wait_all(&comms3[0],&(comms3[(*region_itr).neighbors.size()]));
+            mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors2.size()]));
+            mpi::wait_all(&comms2[0],&(comms2[(*region_itr).neighbors2.size()]));
+            mpi::wait_all(&comms3[0],&(comms3[(*region_itr).neighbors2.size()]));
             comms.clear();
             comms2.clear();
             comms3.clear();

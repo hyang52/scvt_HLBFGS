@@ -110,6 +110,7 @@ double density(const pnt &p){/*{{{*/
     norm = 1.0/(1.0-min_val);
     r = cent.dotForAngle(p);
     density = (tanh((trans_cent-r)/width)+1.0)/2.0*norm + min_val;
+    //density = max( (tanh((trans_cent-r)/width)+1.0)/2.0*norm + min_val, pow(1.0/8.0, 4) );
     return density;
 
 

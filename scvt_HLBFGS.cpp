@@ -94,14 +94,10 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
     //    my_numPts += (*region_itr).points.size();
     //}
     //num_sorts++;
+    //cout<<"id:"<<id<<" "<<" pts="<<my_regions[0].points.size()<<"; ";
     triangulateRegions(id, flags, my_regions);
-    my_err = inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
+    inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
                       my_energy, disj_grad, disj_lloyd, disj_bots);
-    mpi::reduce(world, my_err, err, mpi::maximum<int>(), 0);
-    if(err==1 && id==0){
-        cout << "\n Error: You are using bad partition, or the number of points on each processor is not enough!\n " << endl;
-        exit(1);
-    }
     mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
     mpi::broadcast(world, *f, 0);
 
@@ -530,8 +526,8 @@ int main(int argc, char **argv){
     num_avePoints = num_avePoints / regions.size();
     if(id == 0){
         cout << "\nAverage points per region: " << num_avePoints << endl;
-    }
-    */
+    }*/
+
     //Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
     timers[4].start(); // Final Bisection Timer
     if(bisect_final)
