@@ -1886,13 +1886,13 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                 takeA = a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region);
                 takeB = b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region);
                 takeC = c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region);
-                if((takeA || takeB || takeC) && !globDelau)
+                /*if((takeA || takeB || takeC) && !globDelau)
                 {    //return 1;
                     if(id==0){
                         cout << "\n Warning: You are using bad partition/sort_method,"
                              << "or the number of points on each processor is not enough!\n " << endl;
                     }
-                }
+                }*/
 
                 if(takeA){
                     //Triangle 1 - a ab ccenter

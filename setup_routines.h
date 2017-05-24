@@ -14,6 +14,7 @@
 #include <boost/mpi.hpp>
 #include <boost/serialization/vector.hpp>
 #include "triangulation.h"
+#include "densities.h"
 
 using namespace std;
 using namespace tr1;
@@ -40,9 +41,10 @@ class region{/*{{{*/
     public:
         pnt center;
         double radius;
-        vector<double> radius_nb;
         double input_radius;
         vector<pnt> points;
+		vector<pnt> overlap_nbPts;
+		vector<double> overlap_dists;
         vector<tri> triangles;
         vector<int> neighbors; // First Level of Neighbors
         vector<int> neighbors1; // First Level of Neighbors + Self
@@ -104,7 +106,7 @@ inline std::ostream & operator<<(std::ostream &os, const mpi_timer &t){/*{{{*/
 // Message tags for sending and receiving non-blocking messages
 enum {msg_points, msg_tri_print , msg_restart, msg_ave, msg_max, msg_l1};
 // Sort types
-enum {sort_dot, sort_vor};
+enum {sort_dot, sort_vor, sort_vorMD};
 enum restart_mode_type { RESTART_OVERWRITE, RESTART_RETAIN };
 enum fileio_mode_type { FILEIO_TXT, FILEIO_NETCDF, FILEIO_BOTH };
 
@@ -342,8 +344,8 @@ int buildRegions(const int id, vector<region>& regions, const string regList="Re
             if(loc_radius > max_radius){
                 max_radius = loc_radius;
             }
-            (*region_itr).neighbors.push_back((*region_neigh_itr));
-            (*region_itr).radius_nb.push_back( std::min(1.5*loc_radius,M_PI) );
+            if((*region_neigh_itr) != (*region_itr).center.idx)
+            	(*region_itr).neighbors.push_back((*region_neigh_itr));
         }
 
         (*region_itr).radius = std::min(max_radius,M_PI);
@@ -389,6 +391,92 @@ int buildRegions(const int id, vector<region>& regions, const string regList="Re
 
 
 
+int buildOverlap(const int id, const vector<pnt>& points, vector<region>& regions, vector<region> &region_vec){
+    vector<region>::iterator region_itr;
+    vector<pnt>::const_iterator point_itr;
+    vector<int>::iterator neighbor_itr;
+
+    double dist_temp;
+    double my_dist;
+    double min_dist;
+    int min_region;
+	int my_DisjNumPts;
+	pnt neibPt, midPt, tmp, overlap_nbPt; 
+	double shifted_dist;
+
+
+    for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
+		my_DisjNumPts = 0;
+        for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
+            min_dist = M_PI;
+            my_dist = (*point_itr).dotForAngle((*region_itr).center);
+
+            for(neighbor_itr = (*region_itr).neighbors.begin();
+                    neighbor_itr != (*region_itr).neighbors.end(); ++neighbor_itr){
+                dist_temp = (*point_itr).dotForAngle(regions.at((*neighbor_itr)).center);
+
+                if(dist_temp < min_dist){
+                    min_region = (*neighbor_itr);
+                    min_dist = dist_temp;
+                }
+            }
+            if(my_dist < min_dist || (my_dist == min_dist && (*region_itr).center.idx < min_region)){
+            //if(my_dist < (*region_itr).input_radius * 0.1)){
+				my_DisjNumPts++;
+            }
+        }
+		cout << "\nid:"<< id <<" my_DisjNumPts = " << my_DisjNumPts << endl;
+		(*region_itr).overlap_nbPts.clear();
+		(*region_itr).overlap_dists.clear();
+        for(neighbor_itr = (*region_itr).neighbors.begin();
+                neighbor_itr != (*region_itr).neighbors.end(); ++neighbor_itr){
+			neibPt = regions.at((*neighbor_itr)).center;
+			midPt = ( (*region_itr).center + neibPt ) / 2.0;			
+			try{
+				midPt.normalize();
+			}catch(int j){
+				cout << "throwing error from zero norm, replacing by polar coor for middle point" << endl;
+				double lat = ( (*region_itr).center.getLat() + neibPt.getLat() )/2.0;
+				double lon = ( (*region_itr).center.getLon() + neibPt.getLon() )/2.0;
+				midPt = pntFromLatLon(lat,lon);
+			}
+
+			double coeff;
+			/*if(my_DisjNumPts <= 200)			// 100 should not be smaller
+				coeff = 1.0;
+			else if (my_DisjNumPts <= 400)		// 200 is too small when total num_pts is small
+				coeff = 0.75;
+			else if (my_DisjNumPts <= 1600)		// 800 as cut is too small for 50000 pts test
+				coeff = 0.5;
+			else
+				coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
+			*/
+			if(my_DisjNumPts <= 1600)			// 100 should not be smaller
+				coeff = 1.0 - sqrt(my_DisjNumPts)/80.0;
+			else
+				coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
+			//coeff = 20.0/ (sqrt(my_DisjNumPts)+10.0);
+			//shifted_dist = (*region_itr).input_radius
+			shifted_dist = neibPt.dotForAngle((*region_itr).center)
+						   * min(coeff, 1.0);
+
+			//shifted_dist = neibPt.dotForAngle((*region_itr).center) * min(1.0, 50.0/sqrt(my_DisjNumPts));  //no good scaling with num_proc
+			cout << "shifted_dist = " << shifted_dist << ", radius = " << (*region_itr).input_radius << endl;
+			tmp = midPt - (*region_itr).center;
+			tmp = tmp - midPt * tmp.dot(midPt);
+			overlap_nbPt = midPt + tmp*shifted_dist;
+			overlap_nbPt.normalize();
+			(*region_itr).overlap_nbPts.push_back(overlap_nbPt);
+			(*region_itr).overlap_dists.push_back(shifted_dist);
+        }
+
+    }
+
+}/*}}}*/
+
+
+
+
 /* ***** Generic Region Routines ***** {{{ */
 void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points, int sort_type, vector<region> &region_vec){/*{{{*/
     //Sort points into my region(s).
@@ -417,9 +505,9 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
     } else if (sort_type == sort_vor){
         //More complicated sort, that sorts by Voronoi cells keeping current regions points, as well as neighboring regions points.
         //Should handle variable resolution meshes better than the more simple dot product sorting.
-        double my_val;
+        double my_dist;
         int added;
-        double min_val;
+        double min_dist;
         double max_dist;
         int min_region;
         vector<int>::iterator cur_neigh_itr;
@@ -427,25 +515,25 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
         for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
             max_dist = 0.0;
             for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-                min_val = M_PI;
-                my_val = (*point_itr).dotForAngle((*region_itr).center);
+                min_dist = M_PI;
+                my_dist = (*point_itr).dotForAngle((*region_itr).center);
 
-                //if(my_val < (*region_itr).input_radius)
+                //if(my_dist < (*region_itr).input_radius)
                 {
                     for(neighbor_itr = (*region_itr).neighbors2.begin();
                             neighbor_itr != (*region_itr).neighbors2.end(); ++neighbor_itr){
 
                         val = (*point_itr).dotForAngle(regions.at((*neighbor_itr)).center);
 
-                        if(val < min_val){
+                        if(val < min_dist){
                             min_region = (*neighbor_itr);
-                            min_val = val;
+                            min_dist = val;
                         }
                     }
 
                     added = 0;
 
-                    if(my_val < min_val){
+                    if(my_dist < min_dist){
                         (*region_itr).points.push_back((*point_itr));
                         added = 1;
                     }
@@ -454,30 +542,46 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
                             ++neighbor_itr){
                         if(min_region == (*neighbor_itr)){
                             //val = (*region_itr).center.dotForAngle(regions[min_region].center);
-                            //if(my_val < val)
+                            //if(my_dist < val)
                             {
                                 (*region_itr).points.push_back((*point_itr));
                                 added = 1;
                             }
                         }
                     }
-                   /* for(int i=0; i<(*region_itr).neighbors.size() && added==0; ++i){
-                        if(min_region == (*region_itr).neighbors[i]){
-                            if(my_val < (*region_itr).radius_nb[i]){
-                                (*region_itr).points.push_back((*point_itr));
-                                added = 1;
-                            }
-                        }
-
-                    }*/
-
                 }
-                if(my_val > max_dist && added==1){
-                    max_dist = my_val;
+                if(my_dist > max_dist && added==1){
+                    max_dist = my_dist;
                 }
 
             }
             (*region_itr).radius = max_dist;
+        }
+    } else if (sort_type == sort_vorMD){
+        double my_dist;
+        double min_dist;
+
+        for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
+            for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
+                min_dist = M_PI;
+                my_dist = (*point_itr).dotForAngle((*region_itr).center);
+            
+				for(int i=0; i<(*region_itr).neighbors.size(); ++i){
+                    /*val = (*point_itr).dotForAngle((*region_itr).overlap_nbPts[i]);
+                    if(val < min_dist){
+                        min_dist = val;
+                    }*/
+                    val = (*point_itr).dotForAngle(regions.at((*region_itr).neighbors[i]).center) + (*region_itr).overlap_dists[i];
+                    if(val < min_dist){
+                        min_dist = val;
+                    }
+				}
+				min_dist = min(min_dist,M_PI*0.75);
+                if(my_dist <= min_dist){
+                    (*region_itr).points.push_back((*point_itr));
+                }
+
+            }
         }
     }
 #ifdef _DEBUG

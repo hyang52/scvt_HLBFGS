@@ -29,8 +29,9 @@
     itr_File                        = 051400Loy.txt     # for scvt_Lloyd.exe, file to save iteration info from polar coordinates
                                                 # format: itr dx_l2 f df_polarNorm cumulative_time(f eval not included)
 [partition]
-    sort_method                     = 1         # values: 0 or 1
-                                                # Method to use for sorting point set into regions. 0 - Dot product, 1 - Voronoi sort.
+    sort_method                     = 2         # values: 0, 1, 2
+                                               # Method to use for sorting point set into regions. (Overlapping method)
+                                                # 0 - Dot product, 1 - Voronoi sort, 2 - Voronoi sort with multi-distances
 [scvt]
     num_bisections                  = 0         # values: positive integer.  Number of times the point set will be bisected after convergin.
                                                 # num_pts: 12 42 162 642 2562 10242 40962 163842 655362 2621442
@@ -40,7 +41,7 @@
         initial_point_set           = 4         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
                                                 # 4 - Non-uniform Monte Carlo
-        number_of_generated_points  = 163842       # values: positive integer
+        number_of_generated_points  = 50000       # values: positive integer
 
     [../integration]
         quadrature_rule             = 2         # values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0
@@ -80,4 +81,4 @@
 
 
 
-
+ 

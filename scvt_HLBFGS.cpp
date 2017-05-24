@@ -94,7 +94,7 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
     //    my_numPts += (*region_itr).points.size();
     //}
     //num_sorts++;
-    //cout<<"id:"<<id<<" "<<" pts="<<my_regions[0].points.size()<<"; ";
+    cout<<"\nid:"<<id<<" "<<" pts="<<my_regions[0].points.size()<<"; ";
     triangulateRegions(id, flags, my_regions);
     inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
                       my_energy, disj_grad, disj_lloyd, disj_bots);
@@ -315,7 +315,7 @@ int main(int argc, char **argv){
             my_regions.push_back((*region_itr));
         }
     }
-
+	buildOverlap(id, points, regions, my_regions);
 
     if(save_bisectItr && id==0)
     {
@@ -398,7 +398,7 @@ int main(int argc, char **argv){
             }
 
             if(id==0)
-            cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
+            cout << "\nLBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
 
 
             int ret = HLBFGS(disjDistrIdx.size()*3, mem_num, &x[0], evalfunc, 0,

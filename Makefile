@@ -89,4 +89,4 @@ ICFS:
 	$(CC) $(CSWITCHES) $(FLAGS) -c -o $(BFGSSRC)ICFS.o $(BFGSSRC)ICFS.cpp
 
 clean:
-	rm -f *.dat ${EXE} ${TRISRC}triangle.o $(BFGSSRC)HLBFGS.o $(BFGSSRC)LineSearch.o $(BFGSSRC)HLBFGS_BLAS.o $(BFGSSRC)ICFS.o
+	rm -f *.dat *.exe ${TRISRC}triangle.o $(BFGSSRC)HLBFGS.o $(BFGSSRC)LineSearch.o $(BFGSSRC)HLBFGS_BLAS.o $(BFGSSRC)ICFS.o
