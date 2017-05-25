@@ -1787,6 +1787,7 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
     double *energs;
     pnt *tops;
     double *bots;
+	int * GIDs;
     int vi1, vi2, vi3;
     pnt a, b, c;
     pnt ab, bc, ca;
@@ -1815,10 +1816,12 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
     energs = new double[points.size()];
     tops = new pnt[points.size()];
     bots = new double[points.size()];
+    GIDs = new int[points.size()];
     for(int i = 0; i < points.size(); i++){
         energs[i] = 0.0;
         tops[i] = pnt(0.0,0.0,0.0,0,i);
         bots[i] = 0.0;
+		GIDs[i] = 0;
     }
 
     for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
@@ -1850,10 +1853,11 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     }
                 }
                 ccenter.normalize();
-                // This is a weak check on global Delaunay. The user can set a more robust check w.r.t different sort_methods.
-                globDelau = true;
+                // The user can set a more robust check w.r.t different sort_methods.
+                /*globDelau = true;
                 if(min(M_PI, ccenter.dotForAngle((*region_itr).center) + ccenter.dotForAngle(a)) > (*region_itr).input_radius)
                     globDelau = false;
+				*/
 
                 a_dist_to_region = a.dotForAngle((*region_itr).center);
                 b_dist_to_region = b.dotForAngle((*region_itr).center);
@@ -1907,6 +1911,8 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     energs[a.idx] += energ_val*sign;
                     tops[a.idx] += top_val*sign;
                     bots[a.idx] += bot_val*sign;
+	
+					GIDs[a.idx] = 1;
                 }
 
                 if(takeB){
@@ -1922,6 +1928,8 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     energs[b.idx] += energ_val*sign;
                     tops[b.idx] += top_val*sign;
                     bots[b.idx] += bot_val*sign;
+
+					GIDs[b.idx] = 1;
                 }
 
                 if(takeC){
@@ -1937,6 +1945,8 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     energs[c.idx] += energ_val*sign;
                     tops[c.idx] += top_val*sign;
                     bots[c.idx] += bot_val*sign;
+
+					GIDs[c.idx] = 1;
                 }
             }
         }
@@ -1949,7 +1959,7 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
         // Ignoring boundary conditions at this moment
         my_energy += energs[(*point_itr).idx];
         if(!(*point_itr).isBdry){
-            if(bots[(*point_itr).idx] != 0.0){
+            if(GIDs[(*point_itr).idx] == 1){
                 grad_i = 2.0*(*point_itr)*bots[(*point_itr).idx] - 2.0*tops[(*point_itr).idx];
                 grad_i.idx = (*point_itr).idx;
                 distr_grad.push_back(grad_i);
@@ -1957,7 +1967,6 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                 lloyd_i.normalize();
                 lloyd_i.idx = (*point_itr).idx;
                 distr_lloyd.push_back(lloyd_i);
-                //distr_bots.push_back(bots[(*point_itr).idx]);                         //worse than below
                 distr_bots.push_back(tops[(*point_itr).idx].dot(*point_itr));
             }
         } else if((*point_itr).isBdry){
@@ -2241,22 +2250,23 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-            comms.resize((*region_itr).neighbors.size());
+			int nb = (*region_itr).neighbors2.size();
+            comms.resize(nb*2);
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
-                comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_points_out);
+            for(int i = 0; i < nb; i++){
+                comms[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_points_out);
             }
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
+            for(int i = 0; i < nb; i++){
                 temp_points_in.clear();
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_points_in);
-
+                comms[nb+i] = world.irecv((*region_itr).neighbors2.at(i), msg_points, temp_points_in);
+				comms[nb+i].wait();
                 for(point_itr = temp_points_in.begin(); point_itr != temp_points_in.end(); ++point_itr){
                     points.at((*point_itr).idx) = (*point_itr);
                 }
             }
 
-            mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors.size()]));
+            mpi::wait_all(&comms[0],&(comms[nb]));
 
             comms.clear();
         }
@@ -2290,6 +2300,7 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
     vector<double> temp_bots_in;
     vector<double> temp_bots_out;
     vector<mpi::request> comms3;
+    vector<int>  temp_globGIDs(points.size());
     vector<region>::iterator region_itr;
     int idx;
     pnt p, grad;
@@ -2313,37 +2324,46 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
 
             temp_globBots.at(disj_grads[i].idx) = disj_bots[i];
             temp_bots_out.push_back(disj_bots[i]);
+    		if(disj_bots[i]<1e-20)	cout<<"disj_bots[i]="<<disj_bots[i]<<endl;
+
+            temp_globGIDs.at(disj_grads[i].idx) = 1; 
+
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-            comms.resize((*region_itr).neighbors2.size());
-            comms2.resize((*region_itr).neighbors2.size());
-            comms3.resize((*region_itr).neighbors2.size());
+			int nb = (*region_itr).neighbors.size();
+            comms.resize(nb*2);
+            comms2.resize(nb*2);
+            comms3.resize(nb*2);
 
-            for(int i = 0; i < (*region_itr).neighbors2.size(); i++){
-                comms[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_grads_out);
-                comms2[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_lloyds_out);
-                comms3[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_bots_out);
+            for(int i = 0; i < nb; i++){
+                comms[i] = world.isend((*region_itr).neighbors.at(i), 1, temp_grads_out);
+                comms2[i] = world.isend((*region_itr).neighbors.at(i), 2, temp_lloyds_out);
+                comms3[i] = world.isend((*region_itr).neighbors.at(i), 3, temp_bots_out);
             }
 
-            for(int i = 0; i < (*region_itr).neighbors2.size(); i++){
+            for(int i = 0; i < nb; i++){
                 temp_grads_in.clear();
                 temp_lloyds_in.clear();
                 temp_bots_in.clear();
-                world.recv((*region_itr).neighbors2.at(i), msg_points, temp_grads_in);
-                world.recv((*region_itr).neighbors2.at(i), msg_points, temp_lloyds_in);
-                world.recv((*region_itr).neighbors2.at(i), msg_points, temp_bots_in);
+                comms[nb+i] = world.irecv((*region_itr).neighbors.at(i), 1, temp_grads_in);
+                comms2[nb+i] = world.irecv((*region_itr).neighbors.at(i), 2, temp_lloyds_in);
+                comms3[nb+i] = world.irecv((*region_itr).neighbors.at(i), 3, temp_bots_in);
+				comms[nb+i].wait();
+				comms2[nb+i].wait();
+				comms3[nb+i].wait();
 
                 for(int j=0; j < temp_grads_in.size(); ++j){
                     temp_globGrads.at(temp_grads_in[j].idx) = temp_grads_in[j];
                     temp_globLloyds.at(temp_grads_in[j].idx) = temp_lloyds_in[j];
                     temp_globBots.at(temp_grads_in[j].idx) = temp_bots_in[j];
+                    temp_globGIDs.at(temp_grads_in[j].idx) = 1;
                 }
             }
 
-            mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors2.size()]));
-            mpi::wait_all(&comms2[0],&(comms2[(*region_itr).neighbors2.size()]));
-            mpi::wait_all(&comms3[0],&(comms3[(*region_itr).neighbors2.size()]));
+            mpi::wait_all(&comms[0],&(comms[nb]));
+            mpi::wait_all(&comms2[0],&(comms2[nb]));
+            mpi::wait_all(&comms3[0],&(comms3[nb]));
             comms.clear();
             comms2.clear();
             comms3.clear();
@@ -2353,6 +2373,7 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
             temp_globGrads.at(disj_grads[j].idx) = disj_grads[j];
             temp_globLloyds.at(disj_grads[j].idx) = disj_lloyds[j];
             temp_globBots.at(disj_grads[j].idx) = disj_bots[j];
+            temp_globGIDs.at(disj_grads[j].idx) = 1;
         }
     }
 
@@ -2368,16 +2389,9 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
     for(int i=0; i<disjDistrIdx.size(); ++i)
     {
         idx = disjDistrIdx[i];
-        p = points.at(idx);
-
-        bot_i = temp_globBots.at(idx);
-        if(bot_i==0.0){
+        if(temp_globGIDs.at(idx) != 1)
             return 1;
-        }else{
-            myIdx_bots.push_back(bot_i);
-            myIdx_bots.push_back(bot_i);
-            myIdx_bots.push_back(bot_i);
-        }
+        p = points.at(idx);
 
         grad = temp_globGrads.at(idx);
         proj = grad.dot(p);
@@ -2388,6 +2402,13 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).x);
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).y);
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).z);
+
+        bot_i = temp_globBots.at(idx);
+    	if(fabs(bot_i)<1e-20)	cout<<"bot_i="<<bot_i<<endl;
+    	//if(fabs(bot_i)<1e-100)	bot_i = 1.0;
+        myIdx_bots.push_back(bot_i);
+        myIdx_bots.push_back(bot_i);
+        myIdx_bots.push_back(bot_i);
     }
 
 #ifdef _DEBUG

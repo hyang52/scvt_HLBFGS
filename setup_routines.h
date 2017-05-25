@@ -43,7 +43,6 @@ class region{/*{{{*/
         double radius;
         double input_radius;
         vector<pnt> points;
-		vector<pnt> overlap_nbPts;
 		vector<double> overlap_dists;
         vector<tri> triangles;
         vector<int> neighbors; // First Level of Neighbors
@@ -403,7 +402,7 @@ int buildOverlap(const int id, const vector<pnt>& points, vector<region>& region
 	int my_DisjNumPts;
 	pnt neibPt, midPt, tmp, overlap_nbPt; 
 	double shifted_dist;
-
+	double coeff;
 
     for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
 		my_DisjNumPts = 0;
@@ -421,16 +420,14 @@ int buildOverlap(const int id, const vector<pnt>& points, vector<region>& region
                 }
             }
             if(my_dist < min_dist || (my_dist == min_dist && (*region_itr).center.idx < min_region)){
-            //if(my_dist < (*region_itr).input_radius * 0.1)){
 				my_DisjNumPts++;
             }
         }
-		cout << "\nid:"<< id <<" my_DisjNumPts = " << my_DisjNumPts << endl;
-		(*region_itr).overlap_nbPts.clear();
 		(*region_itr).overlap_dists.clear();
+		//(*region_itr).overlap_nbPts.clear();
         for(neighbor_itr = (*region_itr).neighbors.begin();
                 neighbor_itr != (*region_itr).neighbors.end(); ++neighbor_itr){
-			neibPt = regions.at((*neighbor_itr)).center;
+			/*neibPt = regions.at((*neighbor_itr)).center;
 			midPt = ( (*region_itr).center + neibPt ) / 2.0;			
 			try{
 				midPt.normalize();
@@ -440,33 +437,19 @@ int buildOverlap(const int id, const vector<pnt>& points, vector<region>& region
 				double lon = ( (*region_itr).center.getLon() + neibPt.getLon() )/2.0;
 				midPt = pntFromLatLon(lat,lon);
 			}
-
-			double coeff;
-			/*if(my_DisjNumPts <= 200)			// 100 should not be smaller
-				coeff = 1.0;
-			else if (my_DisjNumPts <= 400)		// 200 is too small when total num_pts is small
-				coeff = 0.75;
-			else if (my_DisjNumPts <= 1600)		// 800 as cut is too small for 50000 pts test
-				coeff = 0.5;
-			else
-				coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
-			*/
-			if(my_DisjNumPts <= 1600)			// 100 should not be smaller
-				coeff = 1.0 - sqrt(my_DisjNumPts)/80.0;
-			else
-				coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
-			//coeff = 20.0/ (sqrt(my_DisjNumPts)+10.0);
-			//shifted_dist = (*region_itr).input_radius
-			shifted_dist = neibPt.dotForAngle((*region_itr).center)
-						   * min(coeff, 1.0);
-
-			//shifted_dist = neibPt.dotForAngle((*region_itr).center) * min(1.0, 50.0/sqrt(my_DisjNumPts));  //no good scaling with num_proc
-			cout << "shifted_dist = " << shifted_dist << ", radius = " << (*region_itr).input_radius << endl;
 			tmp = midPt - (*region_itr).center;
 			tmp = tmp - midPt * tmp.dot(midPt);
 			overlap_nbPt = midPt + tmp*shifted_dist;
 			overlap_nbPt.normalize();
 			(*region_itr).overlap_nbPts.push_back(overlap_nbPt);
+			*/
+			if(my_DisjNumPts <= 1600)			
+				coeff = 1.0 - sqrt(my_DisjNumPts)/80.0;
+			else
+				coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
+			shifted_dist = neibPt.dotForAngle((*region_itr).center)
+						   * min(coeff, 1.0);
+			//cout << "shifted_dist = " << shifted_dist << ", radius = " << (*region_itr).input_radius << endl;
 			(*region_itr).overlap_dists.push_back(shifted_dist);
         }
 
@@ -582,6 +565,28 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
                 }
 
             }
+			if((*region_itr).points.size()==0){
+				for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
+		            min_dist = M_PI;
+		            my_dist = (*point_itr).dotForAngle((*region_itr).center);
+		        
+					for(int i=0; i<(*region_itr).neighbors.size(); ++i){
+		                /*val = (*point_itr).dotForAngle((*region_itr).overlap_nbPts[i]);
+		                if(val < min_dist){
+		                    min_dist = val;
+		                }*/
+		                val = (*point_itr).dotForAngle(regions.at((*region_itr).neighbors[i]).center) + (*region_itr).overlap_dists[i];
+		                if(val < min_dist){
+		                    min_dist = val;
+		                }
+					}
+					min_dist = min(min_dist,M_PI*0.75);
+		            if(my_dist <= min_dist){
+		                (*region_itr).points.push_back((*point_itr));
+		            }
+            	}
+			}
+
         }
     }
 #ifdef _DEBUG

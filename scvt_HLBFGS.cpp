@@ -88,13 +88,14 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
         my_points.push_back(p);
     }
     transferUpdatedPoints(world, my_regions, my_points, points);
+    //gatherAllUpdatedPoints(world, my_points, points);
     clearRegions(id, my_regions);
     sortPoints(id, regions, points, sort_method, my_regions);
     //for(vector<region>::iterator region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
     //    my_numPts += (*region_itr).points.size();
     //}
     //num_sorts++;
-    cout<<"\nid:"<<id<<" "<<" pts="<<my_regions[0].points.size()<<"; ";
+    //cout<<"\nid:"<<id<<" "<<" pts="<<my_regions[0].points.size()<<"; ";
     triangulateRegions(id, flags, my_regions);
     inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
                       my_energy, disj_grad, disj_lloyd, disj_bots);
