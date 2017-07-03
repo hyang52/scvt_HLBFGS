@@ -38,6 +38,7 @@
 #include "Amesos_BaseSolver.h"
 #include "Amesos_Umfpack.h"
 #include "Amesos_Lapack.h"
+#include "Teuchos_ParameterList.hpp"
 
 #include "GetPot.hpp"
 #include "HLBFGS/HLBFGS.h"
@@ -166,7 +167,7 @@ void HLBFGS_DSCALDV(const int n, const double *a, double *y)
 
 //////////////////////////////////////////////////////////////////////////
 void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
-               int cur_pos, double *diag, int INFO[], double *x, mpi::communicator* mpicomm=0)
+               int cur_pos, double *diag, int INFO[], double *x, mpi::communicator* comm=0)
 {
     if (M <= 0)
     {
@@ -198,17 +199,32 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
                 b.ReplaceGlobalValue (iRow, 2, q[3*i+2]);
             }
 
-			systemSolve(*comm, *matrixA, x, b);
+            Epetra_LinearProblem Problem(&(*matrixA), &x, &b);
+            Amesos_Umfpack Solver(Problem);
+            //Amesos_Lapack Solver(Problem);
+            Solver.SymbolicFactorization();
+            Solver.NumericFactorization();
+            Solver.Solve();
 
+			const double baseC = b[0][0] - x[0][0];
             for( int i=0 ; i < N/3; ++i )
             {
                 int iLoc = matrixA->LCID(disjDistrIdx[i]);
-                q[3*i] = x[0][iLoc];
-                q[3*i+1] = x[1][iLoc];
-                q[3*i+2] = x[2][iLoc];
+                q[3*i] = x[0][iLoc] + baseC;
+                q[3*i+1] = x[1][iLoc] + baseC;
+                q[3*i+2] = x[2][iLoc] + baseC;
             }
 
-			//x.Print(cout);
+            /*Epetra_MultiVector err(matrixA->RowMap(),3);
+			matrixA->Multiply(false, x, err);
+			err.Update(-1.0,b,1.0);
+			double*nmInf = new double[3];
+			err.NormInf(nmInf);
+			cout.precision(15);
+			cout << "Norm of resid = " << nmInf[0] << " "<< nmInf[1] << " "<< nmInf[2] << endl;
+			//matrixA->Print(cout);
+			//b.Print(cout);
+			//x.Print(cout); */
         }
     }
 }

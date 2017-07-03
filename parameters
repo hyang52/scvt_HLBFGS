@@ -3,23 +3,23 @@
 #--------------------------------------------------#
 [HLBFGS]
     memory_number                   = 7         # number of previous iterations stored in memory for limited-memory BFGS
-    itr_File                        = QN2017051101.txt      # file to save iteration info from polar coordinates
+    itr_File                        = 063003GL_se-4_f10g4.txt      # file to save iteration info from polar coordinates
 
     [./real_tol]
         c_1                         = 1e-4      # for Quasi-Newton, function tolerance used in line-search
         c_2                         = 0.99      # for Quasi-Newton, gradient tolerance used in line-search
-        f-preSetf_tol               = 1e-7      # for Quasi-Newton, stopping tolerance |f^k+1 - preSet_f| / preSet_f. sugg val: 1e-6 ~ 1e-7
+        f-preSetf_tol               = 1e-6      # for Quasi-Newton, stopping tolerance |f^k+1 - preSet_f| / preSet_f. sugg val: 1e-6 ~ 1e-7
         g_tol                       = 1e-4      # for Quasi-Newton, stopping tolerance ||g^k||/f^k. 1e-3 seems not enough for good quality
-        f-f_tol                     = 0.0       # for Quasi-Newton, stopping tolerance |f^k+1 - f^k| / f^k. sugg val: <= 1e-7
+        f-f_tol                     = 1e-10       # for Quasi-Newton, stopping tolerance |f^k+1 - f^k| / f^k. sugg val: <= 1e-7
                                                 # In practice, 1e-6 may still return obtuse triangles/short vor edges. 1e-7 is OK in practice
-        dx_tol                      = 1e-4      # sugg val: 1e-3 to 1e-4. for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
+        dx_tol                      = 5e-4      # sugg val: 1e-3 to 1e-4. for Quasi-Newton, stopping tolerance ||x^k+1 - x^k||_l2
 
     [../int_tol]
-        max_LS                      = 5         # the max number of evaluation in line-search
+        max_LS                      = 10         # the max number of evaluation in line-search
         invH0_strategy              = 3         # strategy for updating initial inverse Hessian.
                                                 # 0: standard, 1: M1QN3 strategy, 2: Lloyd, 3: graph Laplacian
         Tfreq                       = 1         # frequency used in graph Laplacian preconditioned L-BFGS
-        max_itr                     = 5000       # the max number of iterations in each single optimization, i.e. without resetting
+        max_itr                     = 2000       # the max number of iterations in each single optimization, i.e. without resetting
         max_reset                   = 50        # max num of resetting LBFGS, i.e. setting iter=0 inside LBFGS
         max_restart                 = 50        # max num of restartng Lloyd_LBFGS when bad communication happen and LBFGS return 1.
 
@@ -38,10 +38,10 @@
     bisect_final                    = false     # should bisect-then-save final end_points or not. save to bisected_points.dat
 
     [./initial]
-        initial_point_set           = 3         # values: 0, 1, 2, or 3
+        initial_point_set           = 4         # values: 0, 1, 2, or 3
                                                 # 0 - Read from SaveVertices, 1 - Monte Carlo, 2 - Generalized Spiral, 3 - Fibbonaci Grid
                                                 # 4 - Non-uniform Monte Carlo
-        number_of_generated_points  = 642       # values: positive integer
+        number_of_generated_points  = 2562       # values: positive integer
 
     [../integration]
         quadrature_rule             = 2         # values: 0, 1, 2, 3, 4 or 5.  Quadrature rule to use for triangle integration. Default: 0

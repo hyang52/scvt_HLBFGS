@@ -12,35 +12,8 @@
 
 #ifndef LOOP_ROUTINES_H_
 #define LOOP_ROUTINES_H_
-#include "Amesos_ConfigDefs.h"
-#ifdef HAVE_MPI
-#include "mpi.h"
-#include "Epetra_MpiComm.h"
-#else
-#include "Epetra_SerialComm.h"
-#endif
-#include "Epetra_Vector.h"
-#include "Epetra_Time.h"
-#include "Epetra_RowMatrix.h"
-#include "Epetra_CrsMatrix.h"
-#include "Amesos.h"
-#include "Amesos_BaseSolver.h"
-#include "Amesos_Umfpack.h"
-#include "Amesos_Lapack.h"
-#include "Epetra_MultiVector.h"
-#include "AztecOO.h"
-#include "Ifpack_ConfigDefs.h"
-#include "Teuchos_ParameterList.hpp"
-#include "Teuchos_RefCountPtr.hpp"
-#include "AztecOO.h"
-#include "Ifpack.h"
-#include <Teuchos_ParameterList.hpp>
-// includes required by ML
-#include "ml_include.h"
-#include "Epetra_LinearProblem.h"
-#include "ml_MultiLevelOperator.h"
-#include "ml_epetra_utils.h"
 
+#include "Epetra_CrsMatrix.h"
 #include <tr1/unordered_set>
 #include "Triangle/triangle.h"
 #include "setup_routines.h"
@@ -49,7 +22,6 @@
 // Uses boost mpi to make use of serialization routines for packing and unpacking of classes
 namespace mpi = boost::mpi;
 typedef boost::optional<mpi::status> optional;
-using namespace ML_Epetra;
 
 class Quadrature
 {
@@ -2005,6 +1977,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 		Indices[0] = iRow;
 		numEntries = 1;
 
+		//Values[0] = 2.0*tops[iRow].dot(points[iRow]);
 		Values[0] = 0.0;
 		for ( int j=0; j<points.size(); ++j) 
 		{ 	
@@ -2017,7 +1990,7 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
 				numEntries++;
 			}
 		}
-		if(iRow==0) Values[0] *=1.5;
+		Values[0] *= (1+1e-4);
 		A.InsertGlobalValues(iRow, numEntries, Values, Indices);
 	}
 
@@ -2508,87 +2481,6 @@ void gatherAllUpdatedPoints(const mpi::communicator& world, vector<pnt>& n_point
 #endif
 }/*}}}*/
 /*}}}*/
-
-
-void systemSolve(Epetra_MpiComm& Comm, Epetra_CrsMatrix& A, Epetra_MultiVector& LHS, Epetra_MultiVector& RHS)
-{
-	Epetra_LinearProblem Problem(&A, &LHS, &RHS);
-	AztecOO solver(Problem);
-  	solver.SetAztecOption(AZ_solver, AZ_cg);
-	solver.SetAztecOption(AZ_output, 16);
-
-//////////////////// ML cannot compile ////////////////////////////////
-
-/*	// ================= MultiLevelOperator SECTION ========================
-	ML* ml_handle;               // container of all ML' data
-	int nLevels = 2;            
-	ML_Set_PrintLevel(3);       // print level (0 silent, 10 verbose)
-	ML_Create(&ml_handle, nLevels);
-
-	EpetraMatrix2MLMatrix(ml_handle, 0, &A);
-	ML_Aggregate *agg_object;
-	ML_Aggregate_Create(&agg_object);
-  	ML_Aggregate_Set_MaxCoarseSize(agg_object,1);
-	nLevels = ML_Gen_MGHierarchy_UsingAggregation(ml_handle, 0,
-                                                  ML_INCREASING, agg_object);
-	// simple coarse solver. You may want to use Amesos to access
-	// to a large variety of direct solvers, serial and parallel
-  	ML_Gen_Smoother_SymGaussSeidel(ml_handle, ML_ALL_LEVELS,
-                                  	ML_BOTH, 1, ML_DEFAULT);
-	ML_Gen_Solver(ml_handle, ML_MGV, 0, nLevels-1);
-	MultiLevelOperator MLPrec(ml_handle, Comm, A.RowMap(), A.RowMap());
-	solver.SetPrecOperator(&MLPrec);
-
-	solver.Iterate(500, 1e-8);
-
-	// The following is a check to verify that the real residual is small
-	double residual;
-	LHS.Norm2(&residual);
-	if (Comm.MyPID() == 0) 
-	{
-		cout << "||b-Ax||_2 = " << residual << endl;
-	}
-
-	ML_Aggregate_Destroy(&agg_object);
-	ML_Destroy(&ml_handle);
-*/
-
-	// =============================================================== //
-	// B E G I N N I N G   O F   I F P A C K   C O N S T R U C T I O N //
-	// =============================================================== //
-
-	Teuchos::ParameterList List;
-	Ifpack Factory;
-	string PrecType = "Amesos";
-	int OverlapLevel = 2; // must be >= 0. If Comm.NumProc() == 1,
-	Teuchos::RefCountPtr<Ifpack_Preconditioner> Prec = Teuchos::rcp( Factory.Create(PrecType, &A, OverlapLevel) );
-	assert(Prec != Teuchos::null);
-
-	// specify the Amesos solver to be used. 
-	// If the selected solver is not available,
-	// IFPACK will try to use Amesos' KLU (which is usually always
-	// compiled). Amesos' serial solvers are:
-	// "Amesos_Klu", "Amesos_Umfpack", "Amesos_Superlu"
-	List.set("amesos: solver type", "Amesos_Klu");
-
-	// sets the parameters
-	Prec->SetParameters(List);
-	Prec->Initialize();
-	Prec->Compute();
-
-	// =================================================== //
-	// E N D   O F   I F P A C K   C O N S T R U C T I O N //
-	// =================================================== //
-	// HERE WE SET THE IFPACK PRECONDITIONER
-	solver.SetPrecOperator(&*Prec);
-	solver.Iterate(500,1e-8);
-
-
-}
-
-
-
-
 
 
 

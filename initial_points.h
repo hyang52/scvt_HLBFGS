@@ -16,7 +16,7 @@
 #include "triangulation.h"
 #include "densities.h"
 
-#define SEED    3729
+#define SEED    2562
 
 using namespace std;
 
