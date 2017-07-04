@@ -16,7 +16,7 @@
 #include "triangulation.h"
 #include "densities.h"
 
-#define SEED    3729
+#define SEED   2017  //3729
 
 using namespace std;
 
@@ -325,8 +325,8 @@ void makeNonuniMCPoints(int n, vector<pnt>& points){/*{{{*/
         p.isBdry = 0;
         p.normalize();
 
-        //if(max(density(p),pow(1.0/3.0,4)) >= randRho){
-        if(density(p) >= randRho){
+        if(max(density(p),pow(1.0/3.0,4)) >= randRho){
+        //if(density(p) >= randRho){
             points.push_back(p);
             i++;
         }

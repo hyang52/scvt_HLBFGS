@@ -78,8 +78,8 @@ int main(int argc, char **argv){
     int conv = 2; //convergence_check by Maximum movement
     int max_it = 5001;
     double eps = 1.0E-4;
-    int div_levs = 1; // level for triangle_division in integration
-    int quad_rule = 3; //7 Point Rule;
+    int div_levs = 2; // level for triangle_division in integration
+    int quad_rule = 0; //CC Point Rule;
     int use_barycenter = 0; // use circumcenter as delaunay_triangle_center
     int sort_method = sort_dot;
 

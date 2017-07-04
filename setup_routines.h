@@ -11,6 +11,16 @@
 #ifndef SETUP_ROUTINES_H_
 #define SETUP_ROUTINES_H_
 
+#define USETIMES
+
+#include <sys/time.h>
+#ifdef USETIMES
+# include <sys/times.h>
+# include <unistd.h>
+#else
+# include <sys/resource.h>
+#endif
+
 #include <boost/mpi.hpp>
 #include <boost/serialization/vector.hpp>
 #include "triangulation.h"
@@ -43,7 +53,7 @@ class region{/*{{{*/
         double radius;
         double input_radius;
         vector<pnt> points;
-		vector<double> overlap_dists;
+        vector<double> overlap_dists;
         vector<tri> triangles;
         vector<int> neighbors; // First Level of Neighbors
         vector<int> neighbors1; // First Level of Neighbors + Self
@@ -56,6 +66,80 @@ class region{/*{{{*/
 struct int_hasher {/*{{{*/
       size_t operator()(const int v) const { return v; }
 };/*}}}*/
+
+
+
+double
+phgGetTime(double tarray[])
+/* tarray[0]=User time, tarray[1]=Sys time, tarray[2]=Elapsed time,
+   all expressed in seconds.
+
+   DAWN1000 nf77
+    double F77name(dclock)();
+    tarray[0]=tarray[1]=tarray[2]=F77name(dclock)(); */
+{
+    struct timeval tv;
+
+    if (tarray != NULL) {
+#ifdef USETIMES  /*==================================================*/
+    struct tms ts;
+    static double ClockTick = 0.0;
+
+    if (ClockTick == 0.0)
+        ClockTick = (double)sysconf(_SC_CLK_TCK);
+    if ( times(&ts) == -1 ) {
+        tarray[0]=tarray[1] = 0.0;
+    } else {
+        tarray[0] = (double)ts.tms_utime / ClockTick;
+        tarray[1] = 0.0;
+    }
+#else        /*==================================================*/
+    /* For Solaris */
+    /*#include </usr/ucbinclude/sys/rusage.h> */
+    struct rusage RU;
+    getrusage(RUSAGE_SELF, &RU);
+    tarray[0] = RU.ru_utime.tv_sec + (double)RU.ru_utime.tv_usec * 1e-6;
+    tarray[1] = RU.ru_stime.tv_sec + (double)RU.ru_stime.tv_usec * 1e-6;
+#endif       /*==================================================*/
+    }
+
+    gettimeofday(&tv, (struct timezone *)0);
+    if (tarray != NULL)
+    return tarray[2] = tv.tv_sec + (double)tv.tv_usec * 1e-6;
+    else
+    return tv.tv_sec + (double)tv.tv_usec * 1e-6;
+}
+
+
+class sys_timer{/*{{{*/
+    public:
+        double start_time;
+        double elapsed_time;
+        double total_time;
+        int num_calls;
+        string name;
+
+        sys_timer() : total_time(0), num_calls(0), name("Default") { };
+        sys_timer(string in_name) : total_time(0), num_calls(0), name(in_name) { };
+
+        void start(){/*{{{*/
+            start_time = phgGetTime(NULL);
+        }/*}}}*/
+        void stop(){/*{{{*/
+            elapsed_time = phgGetTime(NULL) - start_time;
+            total_time += elapsed_time;
+            num_calls++;
+        }/*}}}*/
+};/*}}}*/
+inline std::ostream & operator<<(std::ostream &os, const sys_timer &t){/*{{{*/
+    if(t.num_calls > 0){
+    os << t.name << ": " << t.total_time*1e3 << " (ms), " << (t.total_time/t.num_calls)*1e3 << " (ms). Called " << t.num_calls << " times." << endl;
+    } else {
+    os << t.name << ": Never called. Time = 0.0 (ms)" << endl;
+    }
+    return os;
+}/*}}}*/
+
 
 class mpi_timer{/*{{{*/
     public:
@@ -344,7 +428,7 @@ int buildRegions(const int id, vector<region>& regions, const string regList="Re
                 max_radius = loc_radius;
             }
             if((*region_neigh_itr) != (*region_itr).center.idx)
-            	(*region_itr).neighbors.push_back((*region_neigh_itr));
+                (*region_itr).neighbors.push_back((*region_neigh_itr));
         }
 
         (*region_itr).radius = std::min(max_radius,M_PI);
@@ -399,13 +483,13 @@ int buildOverlap(const int id, const vector<pnt>& points, vector<region>& region
     double my_dist;
     double min_dist;
     int min_region;
-	int my_DisjNumPts;
-	pnt neibPt, midPt, tmp, overlap_nbPt; 
-	double shifted_dist;
-	double coeff;
+    int my_DisjNumPts;
+    pnt neibPt, midPt, tmp, overlap_nbPt;
+    double shifted_dist;
+    double coeff;
 
     for(region_itr = region_vec.begin(); region_itr != region_vec.end(); ++region_itr){
-		my_DisjNumPts = 0;
+        my_DisjNumPts = 0;
         for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
             min_dist = M_PI;
             my_dist = (*point_itr).dotForAngle((*region_itr).center);
@@ -420,37 +504,37 @@ int buildOverlap(const int id, const vector<pnt>& points, vector<region>& region
                 }
             }
             if(my_dist < min_dist || (my_dist == min_dist && (*region_itr).center.idx < min_region)){
-				my_DisjNumPts++;
+                my_DisjNumPts++;
             }
         }
-		(*region_itr).overlap_dists.clear();
-		//(*region_itr).overlap_nbPts.clear();
+        (*region_itr).overlap_dists.clear();
+        //(*region_itr).overlap_nbPts.clear();
         for(neighbor_itr = (*region_itr).neighbors.begin();
                 neighbor_itr != (*region_itr).neighbors.end(); ++neighbor_itr){
-			/*neibPt = regions.at((*neighbor_itr)).center;
-			midPt = ( (*region_itr).center + neibPt ) / 2.0;			
-			try{
-				midPt.normalize();
-			}catch(int j){
-				cout << "throwing error from zero norm, replacing by polar coor for middle point" << endl;
-				double lat = ( (*region_itr).center.getLat() + neibPt.getLat() )/2.0;
-				double lon = ( (*region_itr).center.getLon() + neibPt.getLon() )/2.0;
-				midPt = pntFromLatLon(lat,lon);
-			}
-			tmp = midPt - (*region_itr).center;
-			tmp = tmp - midPt * tmp.dot(midPt);
-			overlap_nbPt = midPt + tmp*shifted_dist;
-			overlap_nbPt.normalize();
-			(*region_itr).overlap_nbPts.push_back(overlap_nbPt);
-			*/
-			if(my_DisjNumPts <= 1600)			
-				coeff = 1.0 - sqrt(my_DisjNumPts)/80.0;
-			else
-				coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
-			shifted_dist = neibPt.dotForAngle((*region_itr).center)
-						   * min(coeff, 1.0);
-			//cout << "shifted_dist = " << shifted_dist << ", radius = " << (*region_itr).input_radius << endl;
-			(*region_itr).overlap_dists.push_back(shifted_dist);
+            /*neibPt = regions.at((*neighbor_itr)).center;
+            midPt = ( (*region_itr).center + neibPt ) / 2.0;
+            try{
+                midPt.normalize();
+            }catch(int j){
+                cout << "throwing error from zero norm, replacing by polar coor for middle point" << endl;
+                double lat = ( (*region_itr).center.getLat() + neibPt.getLat() )/2.0;
+                double lon = ( (*region_itr).center.getLon() + neibPt.getLon() )/2.0;
+                midPt = pntFromLatLon(lat,lon);
+            }
+            tmp = midPt - (*region_itr).center;
+            tmp = tmp - midPt * tmp.dot(midPt);
+            overlap_nbPt = midPt + tmp*shifted_dist;
+            overlap_nbPt.normalize();
+            (*region_itr).overlap_nbPts.push_back(overlap_nbPt);
+            */
+            if(my_DisjNumPts <= 1600)
+                coeff = 1.0 - sqrt(my_DisjNumPts)/80.0;
+            else
+                coeff = pow(min(density((*region_itr).center)/density(midPt),16.0), 1.0/4.0) * 20.0/ sqrt(my_DisjNumPts);
+            shifted_dist = neibPt.dotForAngle((*region_itr).center)
+                           * min(coeff, 1.0);
+            //cout << "shifted_dist = " << shifted_dist << ", radius = " << (*region_itr).input_radius << endl;
+            (*region_itr).overlap_dists.push_back(shifted_dist);
         }
 
     }
@@ -548,8 +632,8 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
             for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
                 min_dist = M_PI;
                 my_dist = (*point_itr).dotForAngle((*region_itr).center);
-            
-				for(int i=0; i<(*region_itr).neighbors.size(); ++i){
+
+                for(int i=0; i<(*region_itr).neighbors.size(); ++i){
                     /*val = (*point_itr).dotForAngle((*region_itr).overlap_nbPts[i]);
                     if(val < min_dist){
                         min_dist = val;
@@ -558,35 +642,12 @@ void sortPoints(const int id, vector<region>& regions, const vector<pnt>& points
                     if(val < min_dist){
                         min_dist = val;
                     }
-				}
-				min_dist = min(min_dist,M_PI*0.75);
+                }
+                min_dist = min(min_dist,M_PI*0.75);
                 if(my_dist <= min_dist){
                     (*region_itr).points.push_back((*point_itr));
                 }
-
             }
-			if((*region_itr).points.size()==0){
-				for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
-		            min_dist = M_PI;
-		            my_dist = (*point_itr).dotForAngle((*region_itr).center);
-		        
-					for(int i=0; i<(*region_itr).neighbors.size(); ++i){
-		                /*val = (*point_itr).dotForAngle((*region_itr).overlap_nbPts[i]);
-		                if(val < min_dist){
-		                    min_dist = val;
-		                }*/
-		                val = (*point_itr).dotForAngle(regions.at((*region_itr).neighbors[i]).center) + (*region_itr).overlap_dists[i];
-		                if(val < min_dist){
-		                    min_dist = val;
-		                }
-					}
-					min_dist = min(min_dist,M_PI*0.75);
-		            if(my_dist <= min_dist){
-		                (*region_itr).points.push_back((*point_itr));
-		            }
-            	}
-			}
-
         }
     }
 #ifdef _DEBUG

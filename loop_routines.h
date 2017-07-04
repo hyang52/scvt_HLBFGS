@@ -262,11 +262,11 @@ void Quadrature::setQuadRule(const int quadRule) {
 
 /* ***** Integration Routines *****  {{{*/
 void Quadrature::integTopBot_CR(const pnt &A, const pnt &B, const pnt &C, pnt &top, double &bot) const{/*{{{*/
-    //Integrate a triangle using the Circumcenter rule
+    //Integrate a triangle using the Center rule
     pnt cent;
     double d;
 
-    circumcenter(A,B,C,cent);
+    cent = (A+B+C)/3.0; //circumcenter(A,B,C,cent);
     cent.normalize();
     d = density(cent);
 
@@ -596,12 +596,12 @@ void divideIntegrate(const int levs, const Quadrature& quadr, const pnt &A, cons
 
 
 void Quadrature::integEnerg_CR(const pnt &c, const pnt &A, const pnt &B, const pnt &C, double &energ) const{/*{{{*/
-    //Integrate a triangle using the Circumcenter rule
+    //Integrate a triangle using the Center rule
     //The first pnt c is the center of corresponding Voronoi cell
     pnt cent;
     double d;
 
-    circumcenter(A,B,C,cent);
+    cent = (A+B+C)/3.0; //circumcenter(A,B,C,cent);
     cent.normalize();
 
     d = density(cent);
@@ -903,12 +903,12 @@ void divideIntegEnerg(const int levs, const Quadrature& quadr, const pnt& VorC, 
 
 
 void Quadrature::integrate_CR(const pnt &c, const pnt &A, const pnt &B, const pnt &C, double &energ, pnt &top, double &bot) const{/*{{{*/
-    //Integrate a triangle using the Circumcenter rule
+    //Integrate a triangle using the Center rule
     //The first pnt c is the center of corresponding Voronoi cell
     pnt cent;
     double d;
 
-    circumcenter(A,B,C,cent);
+    cent = (A+B+C)/3.0; //circumcenter(A,B,C,cent);
     cent.normalize();
     d = density(cent);
 
@@ -1462,8 +1462,9 @@ void integrateRegions(const int id, const int div_levs, const Quadrature& quadr,
         }
     }
 
-    delete(tops);
-    delete(bots);
+    delete[] tops;
+    delete[] bots;
+    delete[] sides;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -1630,8 +1631,8 @@ void inteGradient(const int id, const int div_levs, const Quadrature& quadr, con
         }
     }
 
-    delete(tops);
-    delete(bots);
+    delete[] tops;
+    delete[] bots;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -1769,7 +1770,7 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
         my_energy += energs[(*point_itr).idx];
     }
 
-    delete(energs);
+    delete[] energs;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -1787,7 +1788,7 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
     double *energs;
     pnt *tops;
     double *bots;
-	int * GIDs;
+    int * GIDs;
     int vi1, vi2, vi3;
     pnt a, b, c;
     pnt ab, bc, ca;
@@ -1816,12 +1817,10 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
     energs = new double[points.size()];
     tops = new pnt[points.size()];
     bots = new double[points.size()];
-    GIDs = new int[points.size()];
     for(int i = 0; i < points.size(); i++){
         energs[i] = 0.0;
         tops[i] = pnt(0.0,0.0,0.0,0,i);
         bots[i] = 0.0;
-		GIDs[i] = 0;
     }
 
     for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
@@ -1857,7 +1856,7 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                 /*globDelau = true;
                 if(min(M_PI, ccenter.dotForAngle((*region_itr).center) + ccenter.dotForAngle(a)) > (*region_itr).input_radius)
                     globDelau = false;
-				*/
+                */
 
                 a_dist_to_region = a.dotForAngle((*region_itr).center);
                 b_dist_to_region = b.dotForAngle((*region_itr).center);
@@ -1911,8 +1910,6 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     energs[a.idx] += energ_val*sign;
                     tops[a.idx] += top_val*sign;
                     bots[a.idx] += bot_val*sign;
-	
-					GIDs[a.idx] = 1;
                 }
 
                 if(takeB){
@@ -1928,8 +1925,6 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     energs[b.idx] += energ_val*sign;
                     tops[b.idx] += top_val*sign;
                     bots[b.idx] += bot_val*sign;
-
-					GIDs[b.idx] = 1;
                 }
 
                 if(takeC){
@@ -1945,8 +1940,6 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
                     energs[c.idx] += energ_val*sign;
                     tops[c.idx] += top_val*sign;
                     bots[c.idx] += bot_val*sign;
-
-					GIDs[c.idx] = 1;
                 }
             }
         }
@@ -1959,7 +1952,7 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
         // Ignoring boundary conditions at this moment
         my_energy += energs[(*point_itr).idx];
         if(!(*point_itr).isBdry){
-            if(GIDs[(*point_itr).idx] == 1){
+            if(bots[(*point_itr).idx] != 0.0){
                 grad_i = 2.0*(*point_itr)*bots[(*point_itr).idx] - 2.0*tops[(*point_itr).idx];
                 grad_i.idx = (*point_itr).idx;
                 distr_grad.push_back(grad_i);
@@ -1978,9 +1971,9 @@ int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, con
         }
     }
 
-    delete(tops);
-    delete(bots);
-    delete(energs);
+    delete[] tops;
+    delete[] bots;
+    delete[] energs;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -2250,7 +2243,7 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-			int nb = (*region_itr).neighbors2.size();
+            int nb = (*region_itr).neighbors2.size();
             comms.resize(nb*2);
 
             for(int i = 0; i < nb; i++){
@@ -2260,7 +2253,7 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
             for(int i = 0; i < nb; i++){
                 temp_points_in.clear();
                 comms[nb+i] = world.irecv((*region_itr).neighbors2.at(i), msg_points, temp_points_in);
-				comms[nb+i].wait();
+                comms[nb+i].wait();
                 for(point_itr = temp_points_in.begin(); point_itr != temp_points_in.end(); ++point_itr){
                     points.at((*point_itr).idx) = (*point_itr);
                 }
@@ -2324,14 +2317,13 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
 
             temp_globBots.at(disj_grads[i].idx) = disj_bots[i];
             temp_bots_out.push_back(disj_bots[i]);
-    		if(disj_bots[i]<1e-20)	cout<<"disj_bots[i]="<<disj_bots[i]<<endl;
 
-            temp_globGIDs.at(disj_grads[i].idx) = 1; 
+            temp_globGIDs.at(disj_grads[i].idx) = 1;
 
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-			int nb = (*region_itr).neighbors.size();
+            int nb = (*region_itr).neighbors.size();
             comms.resize(nb*2);
             comms2.resize(nb*2);
             comms3.resize(nb*2);
@@ -2349,9 +2341,9 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
                 comms[nb+i] = world.irecv((*region_itr).neighbors.at(i), 1, temp_grads_in);
                 comms2[nb+i] = world.irecv((*region_itr).neighbors.at(i), 2, temp_lloyds_in);
                 comms3[nb+i] = world.irecv((*region_itr).neighbors.at(i), 3, temp_bots_in);
-				comms[nb+i].wait();
-				comms2[nb+i].wait();
-				comms3[nb+i].wait();
+                comms[nb+i].wait();
+                comms2[nb+i].wait();
+                comms3[nb+i].wait();
 
                 for(int j=0; j < temp_grads_in.size(); ++j){
                     temp_globGrads.at(temp_grads_in[j].idx) = temp_grads_in[j];
@@ -2404,8 +2396,6 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).z);
 
         bot_i = temp_globBots.at(idx);
-    	if(fabs(bot_i)<1e-20)	cout<<"bot_i="<<bot_i<<endl;
-    	//if(fabs(bot_i)<1e-100)	bot_i = 1.0;
         myIdx_bots.push_back(bot_i);
         myIdx_bots.push_back(bot_i);
         myIdx_bots.push_back(bot_i);

@@ -397,9 +397,9 @@ int writeRestartFileOverwriteNC( const int it, vector<pnt> &points ) {/*{{{*/
 	if (!zPointVar->put(zPoint,nPointsDim->size())) return NC_ERR;
 
 	// clear memory
-	delete xPoint;
-	delete yPoint;
-	delete zPoint;
+	delete[] xPoint;
+	delete[] yPoint;
+	delete[] zPoint;
 
 	// scope closure destroys NC objs
 	return 0;
@@ -449,9 +449,9 @@ int writeRestartFileRetainNC( const int it, const vector<pnt> &points ) {/*{{{*/
 	if (!zPointVar->put(zPoint,nPointsDim->size())) return NC_ERR;
 
 	// clear memory
-	delete xPoint;
-	delete yPoint;
-	delete zPoint;
+	delete[] xPoint;
+	delete[] yPoint;
+	delete[] zPoint;
 
 	// scope closure destroys NC objs
 	return 0;

@@ -51,7 +51,7 @@ Quadrature quadr;
 char * flags;
 ofstream itrFile;
 int it_bisect;
-boost::shared_ptr<mpi_timer> itr_timer;
+boost::shared_ptr<sys_timer> itr_timer;
 double initial_time;
 //int  my_numPts=0;
 //int  num_sorts=0;
@@ -234,14 +234,15 @@ int main(int argc, char **argv){
 
     //Define timers for performance studies
     const int num_timers = 5;
-    mpi_timer timers[num_timers];
+    sys_timer timers[num_timers];
     string global_names[num_timers] = {"Global Time", "Final Gather", "Final Triangulation", "Initialization", "Final Bisection"};
     for(i = 0; i < num_timers; i++){
-        timers[i] = mpi_timer(global_names[i]);
+        timers[i] = sys_timer(global_names[i]);
     }
     timers[0].start(); // Global Time Timer
     timers[3].start(); // Initialization timer
-    itr_timer.reset(new mpi_timer("Cumulative Time"));
+    if(id==0)
+		itr_timer.reset(new sys_timer("Cumulative Time"));
 
     // Setup initial point set and build regions
     if(id == 0){
@@ -280,7 +281,7 @@ int main(int argc, char **argv){
             exit(1);
         }
 
-        timers[3].stop();
+        /*timers[3].stop();
         timers[0].stop();
         ofstream pts_out("point_initial.dat."+itrFileName);
         for(point_itr = points.begin(); point_itr != points.end(); ++point_itr)
@@ -289,7 +290,7 @@ int main(int argc, char **argv){
         }
         pts_out.close();
         timers[3].start();
-        timers[0].start();
+        timers[0].start();*/
     }
 
     // Broadcast regions, and initial point set to each processor.
@@ -316,7 +317,8 @@ int main(int argc, char **argv){
             my_regions.push_back((*region_itr));
         }
     }
-	buildOverlap(id, points, regions, my_regions);
+	if(sort_method==2)
+		buildOverlap(id, points, regions, my_regions);
 
     if(save_bisectItr && id==0)
     {
@@ -494,7 +496,7 @@ int main(int argc, char **argv){
     // write triangles to triangles.dat
     timers[2].start(); // Final Triangulation Timer
     clearRegions(id, my_regions);
-    sortPoints(id, regions, points, sort_vor, my_regions);
+    sortPoints(id, regions, points, sort_method, my_regions);
     makeFinalTriangulations(id, flags, regions, my_regions);
     timers[2].stop();
 
