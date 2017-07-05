@@ -228,17 +228,18 @@ int main(int argc, char **argv){
             timers[1].stop(); // Global Time Timer
             if(Tstarted)
                 timers[0].stop();
-            double fval=0.0, grad_norm=0.0, my_grad=0.0;
+            double fval=0.0, grad_norm=0.0;
             if(eval_f)
             {
-                double my_energy;
-                inteEnergy(id, div_levs, quadr, use_barycenter, regions, my_regions, points, my_energy);
+                double my_energy=0.0, my_grad=0.0;
+				vector<pnt> disj_grad;
+				vector<pnt> disj_lloyd;
+				vector<double> disj_bots;
+				inteEnergGrad(id, div_levs, quadr, use_barycenter, regions, my_regions, points,
+						          my_energy, disj_grad, disj_lloyd, disj_bots);
                 mpi::reduce(world, my_energy, fval, std::plus<double>(), 0);
-
-                vector<pnt> distr_grad, gradients;
-                inteGradient(id, div_levs, quadr, use_barycenter, regions, my_regions, points, distr_grad);
-                for(int k=0; k<distr_grad.size(); ++k)
-                    my_grad += distr_grad[k].magnitude2();
+                for(int k=0; k<disj_grad.size(); ++k)
+                    my_grad += disj_grad[k].magnitude2();
 				mpi::reduce(world, my_grad, grad_norm, std::plus<double>(), 0);
 				mpi::broadcast(world, grad_norm, 0);
                 grad_norm = sqrt(grad_norm);
@@ -261,7 +262,6 @@ int main(int argc, char **argv){
             if(glob_l2 > dx_tol){
                 transferUpdatedPoints(world, my_regions, n_points, points);
             }else{
-                gatherAllUpdatedPoints(world, n_points, points);
                 stop = true;
             }
 
@@ -290,6 +290,9 @@ int main(int argc, char **argv){
         timers[1].stop();
         if(!save_bisectItr && it_bisect<num_bisections)
             timers[3].stop();
+
+        gatherAllUpdatedPoints(world, n_points, points);
+
         if(save_before_bisect && it_bisect < num_bisections)
         {
             string postNm = to_string(points.size());
@@ -324,7 +327,6 @@ int main(int argc, char **argv){
         // Bisect if needed
         if(it_bisect < num_bisections)
         {
-            gatherAllUpdatedPoints(world, n_points, points);
             if(!save_before_bisect)
             {
                 clearRegions(id, my_regions);

@@ -35,7 +35,7 @@ double ellipse_density(const pnt &p, double lat_c, double lon_c, double lat_widt
     r2 = r2/lat_width;
     r = sqrt (r1*r1 + r2*r2);
 
-    width = 0.35;
+    width = 0.3;
     trans_cent = 30.0 * dtr;
     min_val = pow(1.0/ratio, 4);
     norm = 1.0/(1.0-min_val);
@@ -113,7 +113,7 @@ double density(const pnt &p){/*{{{*/
     //return 1.0;
 
     // Ellipse density function.
-    return ellipse_density(p, 0.0, 0.0, 0.3, 1.2, 32);
+    //return ellipse_density(p, 0.0, 0.0, 0.3, 1.2, 16);
     //
 
     /* Pop low resolution density function.
@@ -125,7 +125,7 @@ double density(const pnt &p){/*{{{*/
     // */
 
     //Density function for Shallow Water Test Case 5
-    //return shaWater_density(p, 16);
+    return shaWater_density(p, 64);
     //
 
     //Dense equator
