@@ -263,11 +263,11 @@ void Quadrature::setQuadRule(const int quadRule) {
 
 /* ***** Integration Routines *****  {{{*/
 void Quadrature::integTopBot_CR(const pnt &A, const pnt &B, const pnt &C, pnt &top, double &bot) const{/*{{{*/
-    //Integrate a triangle using the Circumcenter rule
+    //Integrate a triangle using the Center rule
     pnt cent;
     double d;
 
-    circumcenter(A,B,C,cent);
+    cent = (A+B+C)/3.0; //circumcenter(A,B,C,cent);
     cent.normalize();
     d = density(cent);
 
@@ -597,12 +597,12 @@ void divideIntegrate(const int levs, const Quadrature& quadr, const pnt &A, cons
 
 
 void Quadrature::integEnerg_CR(const pnt &c, const pnt &A, const pnt &B, const pnt &C, double &energ) const{/*{{{*/
-    //Integrate a triangle using the Circumcenter rule
+    //Integrate a triangle using the Center rule
     //The first pnt c is the center of corresponding Voronoi cell
     pnt cent;
     double d;
 
-    circumcenter(A,B,C,cent);
+    cent = (A+B+C)/3.0; //circumcenter(A,B,C,cent);
     cent.normalize();
 
     d = density(cent);
@@ -904,12 +904,12 @@ void divideIntegEnerg(const int levs, const Quadrature& quadr, const pnt& VorC, 
 
 
 void Quadrature::integrate_CR(const pnt &c, const pnt &A, const pnt &B, const pnt &C, double &energ, pnt &top, double &bot) const{/*{{{*/
-    //Integrate a triangle using the Circumcenter rule
+    //Integrate a triangle using the Center rule
     //The first pnt c is the center of corresponding Voronoi cell
     pnt cent;
     double d;
 
-    circumcenter(A,B,C,cent);
+    cent = (A+B+C)/3.0; //circumcenter(A,B,C,cent);
     cent.normalize();
     d = density(cent);
 
@@ -1463,8 +1463,9 @@ void integrateRegions(const int id, const int div_levs, const Quadrature& quadr,
         }
     }
 
-    delete(tops);
-    delete(bots);
+    delete[] tops;
+    delete[] bots;
+    delete[] sides;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -1631,8 +1632,8 @@ void inteGradient(const int id, const int div_levs, const Quadrature& quadr, con
         }
     }
 
-    delete(tops);
-    delete(bots);
+    delete[] tops;
+    delete[] bots;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -1770,7 +1771,7 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
         my_energy += energs[(*point_itr).idx];
     }
 
-    delete(energs);
+    delete[] energs;
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
@@ -1779,10 +1780,215 @@ void inteEnergy(const int id, const int div_levs, const Quadrature& quadr, const
 }/*}}}*/
 
 
+int inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter,
+                    vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points,
+                    double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_lloyd, vector<double>& distr_bots){/*{{{*/
+    // Integrate Voronoi cells inside of my region
+    // Every region updates all points that are closer to their region center than any other region center.
+    // This ensures that each point is only updated once.
+    double *energs;
+    pnt *tops;
+    double *bots;
+    int * GIDs;
+    int vi1, vi2, vi3;
+    pnt a, b, c;
+    pnt ab, bc, ca;
+    pnt ccenter;
+    pnt grad_i, lloyd_i;
+    double dist_temp;
+    double a_dist_to_region, a_min_dist;
+    double b_dist_to_region, b_min_dist;
+    double c_dist_to_region, c_min_dist;
+    int a_min_region, b_min_region, c_min_region;
+    double energ_val;
+    pnt top_val;
+    double bot_val;
+    int sign;
+    vector<region>::iterator region_itr;
+    vector<tri>::iterator tri_itr;
+    vector<pnt>::const_iterator point_itr;
+    vector<int>::iterator neighbor_itr;
+    bool globDelau, takeA, takeB, takeC;
+
+    #ifdef _DEBUG
+        cerr << "Integrating regions " << id << endl;
+    #endif
+
+    my_energy = 0.0;
+    energs = new double[points.size()];
+    tops = new pnt[points.size()];
+    bots = new double[points.size()];
+    for(int i = 0; i < points.size(); i++){
+        energs[i] = 0.0;
+        tops[i] = pnt(0.0,0.0,0.0,0,i);
+        bots[i] = 0.0;
+    }
+
+    for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
+        for(tri_itr = (*region_itr).triangles.begin(); tri_itr != (*region_itr).triangles.end(); ++tri_itr){
+            vi1 = (*tri_itr).vi1;
+            vi2 = (*tri_itr).vi2;
+            vi3 = (*tri_itr).vi3;
+
+            a = points[vi1];
+            b = points[vi2];
+            c = points[vi3];
+
+            if ( !a.isBdry || !b.isBdry || !c.isBdry ) {
+                ab = (a+b)/2.0;
+                bc = (b+c)/2.0;
+                ca = (c+a)/2.0;
+
+                ab.normalize();
+                bc.normalize();
+                ca.normalize();
+
+                if(use_barycenter){
+                    ccenter = (a+b+c)/3.0;
+                } else {
+                    try {
+                        circumcenter(a,b,c,ccenter);
+                    } catch ( int n ) {
+                        ccenter = (a + b + c) / 3.0;
+                    }
+                }
+                ccenter.normalize();
+                // The user can set a more robust check w.r.t different sort_methods.
+                /*globDelau = true;
+                if(min(M_PI, ccenter.dotForAngle((*region_itr).center) + ccenter.dotForAngle(a)) > (*region_itr).input_radius)
+                    globDelau = false;
+                */
+
+                a_dist_to_region = a.dotForAngle((*region_itr).center);
+                b_dist_to_region = b.dotForAngle((*region_itr).center);
+                c_dist_to_region = c.dotForAngle((*region_itr).center);
+
+                a_min_dist = 10.0;
+                b_min_dist = 10.0;
+                c_min_dist = 10.0;
+
+                for(neighbor_itr = (*region_itr).neighbors.begin(); neighbor_itr != (*region_itr).neighbors.end(); ++neighbor_itr){
+                    if(regions[(*neighbor_itr)].center.idx != (*region_itr).center.idx){
+                        dist_temp = a.dotForAngle(regions[(*neighbor_itr)].center);
+                        if(a_min_dist > dist_temp){
+                            a_min_dist = dist_temp;
+                            a_min_region = (*neighbor_itr);
+                        }
+                        dist_temp = b.dotForAngle(regions[(*neighbor_itr)].center);
+                        if(b_min_dist > dist_temp){
+                            b_min_dist = dist_temp;
+                            b_min_region = (*neighbor_itr);
+                        }
+                        dist_temp = c.dotForAngle(regions[(*neighbor_itr)].center);
+                        if(c_min_dist > dist_temp){
+                            c_min_dist = dist_temp;
+                            c_min_region = (*neighbor_itr);
+                        }
+                    }
+                }
+
+                takeA = a_dist_to_region < a_min_dist || (a_dist_to_region == a_min_dist && (*region_itr).center.idx < a_min_region);
+                takeB = b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region);
+                takeC = c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region);
+                /*if((takeA || takeB || takeC) && !globDelau)
+                {    //return 1;
+                    if(id==0){
+                        cout << "\n Warning: You are using bad partition/sort_method,"
+                             << "or the number of points on each processor is not enough!\n " << endl;
+                    }
+                }*/
+
+                if(takeA){
+                    //Triangle 1 - a ab ccenter
+                    divideIntegrate(div_levs,quadr,a,a,ab,ccenter,energ_val,top_val,bot_val);
+                    sign = isCcw(a,ab,ccenter);
+                    energs[a.idx] += energ_val*sign;
+                    tops[a.idx] += top_val*sign;
+                    bots[a.idx] += bot_val*sign;
+                    //Triangle 2 - a ccenter ca
+                    divideIntegrate(div_levs,quadr,a,a,ccenter,ca,energ_val,top_val,bot_val);
+                    sign = isCcw(a,ccenter,ca);
+                    energs[a.idx] += energ_val*sign;
+                    tops[a.idx] += top_val*sign;
+                    bots[a.idx] += bot_val*sign;
+                }
+
+                if(takeB){
+                    //Triangle 1 - b bc ccenter
+                    divideIntegrate(div_levs,quadr,b,b,bc,ccenter,energ_val,top_val,bot_val);
+                    sign = isCcw(b,bc,ccenter);
+                    energs[b.idx] += energ_val*sign;
+                    tops[b.idx] += top_val*sign;
+                    bots[b.idx] += bot_val*sign;
+                    //Triangle 2 - b ccenter ab
+                    divideIntegrate(div_levs,quadr,b,b,ccenter,ab,energ_val,top_val,bot_val);
+                    sign = isCcw(b,ccenter,ab);
+                    energs[b.idx] += energ_val*sign;
+                    tops[b.idx] += top_val*sign;
+                    bots[b.idx] += bot_val*sign;
+                }
+
+                if(takeC){
+                    //Triangle 1 - c ca ccenter
+                    divideIntegrate(div_levs,quadr,c,c,ca,ccenter,energ_val,top_val,bot_val);
+                    sign = isCcw(c,ca,ccenter);
+                    energs[c.idx] += energ_val*sign;
+                    tops[c.idx] += top_val*sign;
+                    bots[c.idx] += bot_val*sign;
+                    //Triangle 2 - c ccenter bc
+                    divideIntegrate(div_levs,quadr,c,c,ccenter,bc,energ_val,top_val,bot_val);
+                    sign = isCcw(c,ccenter,bc);
+                    energs[c.idx] += energ_val*sign;
+                    tops[c.idx] += top_val*sign;
+                    bots[c.idx] += bot_val*sign;
+                }
+            }
+        }
+    }
+
+    distr_grad.clear();
+    distr_lloyd.clear();
+    distr_bots.clear();
+    for(point_itr = points.begin(); point_itr != points.end(); ++point_itr){
+        // Ignoring boundary conditions at this moment
+        my_energy += energs[(*point_itr).idx];
+        if(!(*point_itr).isBdry){
+            if(bots[(*point_itr).idx] != 0.0){
+                grad_i = 2.0*(*point_itr)*bots[(*point_itr).idx] - 2.0*tops[(*point_itr).idx];
+                grad_i.idx = (*point_itr).idx;
+                distr_grad.push_back(grad_i);
+                lloyd_i = tops[(*point_itr).idx] / bots[(*point_itr).idx];
+                lloyd_i.normalize();
+                lloyd_i.idx = (*point_itr).idx;
+                distr_lloyd.push_back(lloyd_i);
+                distr_bots.push_back(tops[(*point_itr).idx].dot(*point_itr));
+            }
+        } else if((*point_itr).isBdry){
+            /*if((*point_itr).isBdry == 2){
+                (*point_itr).isBdry = 0;
+            }
+            pnt zero(0.0,0.0,0.0);
+            distr_grad.push_back(zero); */
+        }
+    }
+
+    delete[] tops;
+    delete[] bots;
+    delete[] energs;
+
+    #ifdef _DEBUG
+        cerr << "Done Integrating regions " << id << endl;
+    #endif
+    return 0;
+}/*}}}*/
+
+
+
+
 void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, const int use_barycenter,
                     vector<region>& regions, vector<region> &my_regions, const vector<pnt>& points,
                     double& my_energy, vector<pnt>& distr_grad, vector<pnt>& distr_lloyd, vector<double>& distr_bots,
-					Epetra_CrsMatrix& A){/*{{{*/
+                    Epetra_CrsMatrix& A){/*{{{*/
     // Integrate Voronoi cells inside of my region
     // Every region updates all points that are closer to their region center than any other region center.
     // This ensures that each point is only updated once.
@@ -1822,11 +2028,11 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
         bots[i] = 0.0;
     }
 
-	vector<vector<double>> Bx2D;
-  	Bx2D.resize(points.size());
-  	for (int i = 0; i < points.size(); ++i){
-    	Bx2D[i].resize(points.size());
-	}
+    vector<vector<double>> Bx2D;
+    Bx2D.resize(points.size());
+    for (int i = 0; i < points.size(); ++i){
+        Bx2D[i].resize(points.size());
+    }
 
     for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
         for(tri_itr = (*region_itr).triangles.begin(); tri_itr != (*region_itr).triangles.end(); ++tri_itr){
@@ -1892,15 +2098,15 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     sign = isCcw(a,ab,ccenter);
                     energs[a.idx] += energ_val*sign;
                     tops[a.idx] += top_val*sign;
-                    bots[a.idx] += bot_val*sign;					
-					Bx2D[b.idx][a.idx] += bot_val*sign;
+                    bots[a.idx] += bot_val*sign;
+                    Bx2D[b.idx][a.idx] += bot_val*sign;
                     //Triangle 2 - a ccenter ca
                     divideIntegrate(div_levs,quadr,a,a,ccenter,ca,energ_val,top_val,bot_val);
                     sign = isCcw(a,ccenter,ca);
                     energs[a.idx] += energ_val*sign;
                     tops[a.idx] += top_val*sign;
                     bots[a.idx] += bot_val*sign;
-					Bx2D[c.idx][a.idx] += bot_val*sign;
+                    Bx2D[c.idx][a.idx] += bot_val*sign;
                 }
 
                 if(b_dist_to_region < b_min_dist || (b_dist_to_region == b_min_dist && (*region_itr).center.idx < b_min_region)){
@@ -1910,14 +2116,14 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     energs[b.idx] += energ_val*sign;
                     tops[b.idx] += top_val*sign;
                     bots[b.idx] += bot_val*sign;
-					Bx2D[c.idx][b.idx] += bot_val*sign;
+                    Bx2D[c.idx][b.idx] += bot_val*sign;
                     //Triangle 2 - b ccenter ab
                     divideIntegrate(div_levs,quadr,b,b,ccenter,ab,energ_val,top_val,bot_val);
                     sign = isCcw(b,ccenter,ab);
                     energs[b.idx] += energ_val*sign;
                     tops[b.idx] += top_val*sign;
                     bots[b.idx] += bot_val*sign;
-					Bx2D[a.idx][b.idx] += bot_val*sign;
+                    Bx2D[a.idx][b.idx] += bot_val*sign;
                 }
 
                 if(c_dist_to_region < c_min_dist || (c_dist_to_region == c_min_dist && (*region_itr).center.idx < c_min_region)){
@@ -1927,14 +2133,14 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
                     energs[c.idx] += energ_val*sign;
                     tops[c.idx] += top_val*sign;
                     bots[c.idx] += bot_val*sign;
-					Bx2D[a.idx][c.idx] += bot_val*sign;
+                    Bx2D[a.idx][c.idx] += bot_val*sign;
                     //Triangle 2 - c ccenter bc
                     divideIntegrate(div_levs,quadr,c,c,ccenter,bc,energ_val,top_val,bot_val);
                     sign = isCcw(c,ccenter,bc);
                     energs[c.idx] += energ_val*sign;
                     tops[c.idx] += top_val*sign;
                     bots[c.idx] += bot_val*sign;
-					Bx2D[b.idx][c.idx] += bot_val*sign;
+                    Bx2D[b.idx][c.idx] += bot_val*sign;
                 }
             }
         }
@@ -1967,51 +2173,63 @@ void inteEnergGrad(const int id, const int div_levs, const Quadrature& quadr, co
         }
     }
 
-	double * Values = new double[20];
-	int * Indices = new int[20];
-	int numEntries, iRow;
-	double entry;
-	for( int i=0 ; i<A.RowMap().NumMyElements(); ++i ) 
-	{
-		iRow = A.RowMap().GID(i);
-		Indices[0] = iRow;
-		numEntries = 1;
-
-		//Values[0] = 2.0*tops[iRow].dot(points[iRow]);
-		Values[0] = 0.0;
-		for ( int j=0; j<points.size(); ++j) 
-		{ 	
-			entry = Bx2D[j][iRow] + Bx2D[iRow][j];
-			Values[0] += entry;
-			if(j != iRow && entry != 0.0)
-			{
-				Values[numEntries] = -1.0*entry;  
-				Indices[numEntries] = j;
-				numEntries++;
+    double * Values = new double[20];
+    int * Indices = new int[20];
+    int numEntries, iRow;
+    double entry;
+    for( int i=0 ; i<A.RowMap().NumMyElements(); ++i )
+    {
+        iRow = A.RowMap().GID(i);
+		/*if(iRow==0)
+		{
+			numEntries = points.size();
+			double * vals = new double[numEntries];
+			int * inds = new int[numEntries];
+			for(int k=0; k<numEntries; ++k)
+			{	
+				inds[k] = k;
+				vals[k] = 1.0;
 			}
-		}
-		Values[0] *= (1+1e-4);
-		A.InsertGlobalValues(iRow, numEntries, Values, Indices);
-	}
+        	A.InsertGlobalValues(iRow, numEntries, vals, inds);
+			delete[] vals;
+			delete[] inds;
+		}else*/
+		{
+		    Indices[0] = iRow;
+		    numEntries = 1;
 
-	A.FillComplete();
-	delete[] Indices;
-	delete[] Values;
+		    //Values[0] = 2.0*tops[iRow].dot(points[iRow]);
+		    Values[0] = 0.0;
+		    for ( int j=0; j<points.size(); ++j)
+		    {
+		        entry = Bx2D[j][iRow] + Bx2D[iRow][j];
+		        Values[0] += entry;
+		        if(j != iRow && entry != 0.0)
+		        {
+		            Values[numEntries] = -1.0*entry;
+		            Indices[numEntries] = j;
+		            numEntries++;
+		        }
+		    }
+		    Values[0] *= (1+1e-2); //+= 1e-6; // 
+        	A.InsertGlobalValues(iRow, numEntries, Values, Indices);
+		}
+    }
+
+    A.FillComplete();
+    delete[] Indices;
+    delete[] Values;
 
     delete(tops);
     delete(bots);
     delete(energs);
-	
+
 
     #ifdef _DEBUG
         cerr << "Done Integrating regions " << id << endl;
     #endif
     return;
 }/*}}}*/
-
-
-
-
 
 
 
@@ -2271,22 +2489,23 @@ void transferUpdatedPoints(const mpi::communicator& world, vector<region>& my_re
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-            comms.resize((*region_itr).neighbors.size());
+            int nb = (*region_itr).neighbors2.size();
+            comms.resize(nb*2);
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
-                comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_points_out);
+            for(int i = 0; i < nb; i++){
+                comms[i] = world.isend((*region_itr).neighbors2.at(i), msg_points, temp_points_out);
             }
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
+            for(int i = 0; i < nb; i++){
                 temp_points_in.clear();
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_points_in);
-
+                comms[nb+i] = world.irecv((*region_itr).neighbors2.at(i), msg_points, temp_points_in);
+                comms[nb+i].wait();
                 for(point_itr = temp_points_in.begin(); point_itr != temp_points_in.end(); ++point_itr){
                     points.at((*point_itr).idx) = (*point_itr);
                 }
             }
 
-            mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors.size()]));
+            mpi::wait_all(&comms[0],&(comms[nb]));
 
             comms.clear();
         }
@@ -2320,6 +2539,7 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
     vector<double> temp_bots_in;
     vector<double> temp_bots_out;
     vector<mpi::request> comms3;
+    vector<int>  temp_globGIDs(points.size());
     vector<region>::iterator region_itr;
     int idx;
     pnt p, grad;
@@ -2343,37 +2563,45 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
 
             temp_globBots.at(disj_grads[i].idx) = disj_bots[i];
             temp_bots_out.push_back(disj_bots[i]);
+
+            temp_globGIDs.at(disj_grads[i].idx) = 1;
+
         }
 
         for(region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
-            comms.resize((*region_itr).neighbors.size());
-            comms2.resize((*region_itr).neighbors.size());
-            comms3.resize((*region_itr).neighbors.size());
+            int nb = (*region_itr).neighbors.size();
+            comms.resize(nb*2);
+            comms2.resize(nb*2);
+            comms3.resize(nb*2);
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
-                comms[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_grads_out);
-                comms2[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_lloyds_out);
-                comms3[i] = world.isend((*region_itr).neighbors.at(i), msg_points, temp_bots_out);
+            for(int i = 0; i < nb; i++){
+                comms[i] = world.isend((*region_itr).neighbors.at(i), 1, temp_grads_out);
+                comms2[i] = world.isend((*region_itr).neighbors.at(i), 2, temp_lloyds_out);
+                comms3[i] = world.isend((*region_itr).neighbors.at(i), 3, temp_bots_out);
             }
 
-            for(int i = 0; i < (*region_itr).neighbors.size(); i++){
+            for(int i = 0; i < nb; i++){
                 temp_grads_in.clear();
                 temp_lloyds_in.clear();
                 temp_bots_in.clear();
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_grads_in);
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_lloyds_in);
-                world.recv((*region_itr).neighbors.at(i), msg_points, temp_bots_in);
+                comms[nb+i] = world.irecv((*region_itr).neighbors.at(i), 1, temp_grads_in);
+                comms2[nb+i] = world.irecv((*region_itr).neighbors.at(i), 2, temp_lloyds_in);
+                comms3[nb+i] = world.irecv((*region_itr).neighbors.at(i), 3, temp_bots_in);
+                comms[nb+i].wait();
+                comms2[nb+i].wait();
+                comms3[nb+i].wait();
 
                 for(int j=0; j < temp_grads_in.size(); ++j){
                     temp_globGrads.at(temp_grads_in[j].idx) = temp_grads_in[j];
                     temp_globLloyds.at(temp_grads_in[j].idx) = temp_lloyds_in[j];
                     temp_globBots.at(temp_grads_in[j].idx) = temp_bots_in[j];
+                    temp_globGIDs.at(temp_grads_in[j].idx) = 1;
                 }
             }
 
-            mpi::wait_all(&comms[0],&(comms[(*region_itr).neighbors.size()]));
-            mpi::wait_all(&comms2[0],&(comms2[(*region_itr).neighbors.size()]));
-            mpi::wait_all(&comms3[0],&(comms3[(*region_itr).neighbors.size()]));
+            mpi::wait_all(&comms[0],&(comms[nb]));
+            mpi::wait_all(&comms2[0],&(comms2[nb]));
+            mpi::wait_all(&comms3[0],&(comms3[nb]));
             comms.clear();
             comms2.clear();
             comms3.clear();
@@ -2383,6 +2611,7 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
             temp_globGrads.at(disj_grads[j].idx) = disj_grads[j];
             temp_globLloyds.at(disj_grads[j].idx) = disj_lloyds[j];
             temp_globBots.at(disj_grads[j].idx) = disj_bots[j];
+            temp_globGIDs.at(disj_grads[j].idx) = 1;
         }
     }
 
@@ -2398,16 +2627,9 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
     for(int i=0; i<disjDistrIdx.size(); ++i)
     {
         idx = disjDistrIdx[i];
-        p = points.at(idx);
-
-        bot_i = temp_globBots.at(idx);
-        if(bot_i==0.0){
+        if(temp_globGIDs.at(idx) != 1)
             return 1;
-        }else{
-            myIdx_bots.push_back(bot_i);
-            myIdx_bots.push_back(bot_i);
-            myIdx_bots.push_back(bot_i);
-        }
+        p = points.at(idx);
 
         grad = temp_globGrads.at(idx);
         proj = grad.dot(p);
@@ -2418,6 +2640,11 @@ int transferByDisjDistrIdx(const mpi::communicator& world, vector<region>& my_re
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).x);
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).y);
         myIdx_lloyds.push_back(temp_globLloyds.at(idx).z);
+
+        bot_i = temp_globBots.at(idx);
+        myIdx_bots.push_back(bot_i);
+        myIdx_bots.push_back(bot_i);
+        myIdx_bots.push_back(bot_i);
     }
 
 #ifdef _DEBUG

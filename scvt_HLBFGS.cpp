@@ -69,7 +69,7 @@ Quadrature quadr;
 char * flags;
 ofstream itrFile;
 int it_bisect;
-boost::shared_ptr<mpi_timer> itr_timer;
+boost::shared_ptr<sys_timer> itr_timer;
 double initial_time;
 //int  my_numPts=0;
 //int  num_sorts=0;
@@ -88,6 +88,7 @@ bool save_bisectItr;
 //////////////////////////////////////////////////////////////////////////
 int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
 {
+    int err = 0, my_err = 0;
     *f = 0;
     double my_energy;
     vector<pnt> my_points;
@@ -108,12 +109,14 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
         my_points.push_back(p);
     }
     transferUpdatedPoints(world, my_regions, my_points, points);
+    //gatherAllUpdatedPoints(world, my_points, points);
     clearRegions(id, my_regions);
     sortPoints(id, regions, points, sort_method, my_regions);
     //for(vector<region>::iterator region_itr = my_regions.begin(); region_itr != my_regions.end(); ++region_itr){
     //    my_numPts += (*region_itr).points.size();
     //}
     //num_sorts++;
+    //cout<<"\nid:"<<id<<" "<<" pts="<<my_regions[0].points.size()<<"; ";
     triangulateRegions(id, flags, my_regions);
 
     Epetra_Map map((int)points.size(),0,*comm);                                                  // ingore parallel righ now
@@ -122,15 +125,13 @@ int evalfunc(int my_N, double* my_x, double *my_prev_x, double* f, double* my_g)
                       my_energy, disj_grad, disj_lloyd, disj_bots, *matrixA);
     mpi::reduce(world, my_energy, *f, std::plus<double>(), 0);
     mpi::broadcast(world, *f, 0);
-    //if(id==0) cout << "\n f ="<< *f <<endl;
 
-    int my_ret = transferByDisjDistrIdx(world, my_regions, points, &my_x[0], disjDistrIdx,
+    my_err = transferByDisjDistrIdx(world, my_regions, points, &my_x[0], disjDistrIdx,
                                         disj_grad, &my_g[0], disj_lloyd, my_lloyds, disj_bots, my_bots);
-    int ret;
-    mpi::reduce(world, my_ret, ret, mpi::maximum<double>(), 0);
-    mpi::broadcast(world, ret, 0);
+    mpi::reduce(world, my_err, err, mpi::maximum<int>(), 0);
+    mpi::broadcast(world, err, 0);
 
-    return ret;
+    return err;
 }
 
 
@@ -142,8 +143,10 @@ void newiteration(int iter, int call_iter, double *x, double* f, double *g,  dou
         if(it_bisect==num_bisections || save_bisectItr)
         {
             itr_timer->stop();
+            itrFile.open(itrFileName.c_str(), ios::app);
             itrFile << iter << " " << call_iter << " " << *f << " " << *gnorm << " "
                     << initial_time + itr_timer->total_time <<"\n" ;
+            itrFile.close();
             itr_timer->start();
         }
         std::cout << iter <<": " << call_iter <<" " << *f <<" " << *gnorm  << std::endl;
@@ -198,6 +201,9 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
                 b.ReplaceGlobalValue (iRow, 1, q[3*i+1]);
                 b.ReplaceGlobalValue (iRow, 2, q[3*i+2]);
             }
+            //b.ReplaceGlobalValue (0, 0, 0.0);
+            //b.ReplaceGlobalValue (0, 1, 0.0);
+            //b.ReplaceGlobalValue (0, 2, 0.0);
 
             Epetra_LinearProblem Problem(&(*matrixA), &x, &b);
             Amesos_Umfpack Solver(Problem);
@@ -206,7 +212,7 @@ void defined_update_Hessian(int N, int M, double *q, double *s, double *y,
             Solver.NumericFactorization();
             Solver.Solve();
 
-			const double baseC = b[0][0] - x[0][0];
+			const double baseC = 0.0; //b[1][0] - x[1][0];
             for( int i=0 ; i < N/3; ++i )
             {
                 int iLoc = matrixA->LCID(disjDistrIdx[i]);
@@ -239,7 +245,7 @@ int main(int argc, char **argv){
     //Processor information and global communicator
     //master id is always 0
     MPI_Init(&argc, &argv);                                 // Epetra mpi needed by Epetra_CrsMatrix
-    mpi::environment env(argc, argv);                       // boost mpi needed by original data structure
+    mpi::environment env(argc, argv);
     comm.reset(new Epetra_MpiComm(MPI_COMM_WORLD));
     id = world.rank();
     num_procs = world.size();
@@ -299,18 +305,19 @@ int main(int argc, char **argv){
     info[3] = dataFile("HLBFGS/int_tol/invH0_strategy", 0);
     info[4] = dataFile("HLBFGS/int_tol/max_itr", 100000);
     info[14] = dataFile("HLBFGS/int_tol/max_reset", 0);
-    if(info[3]==2 || info[3]==3)  info[12] = 1;
+    if(info[3]==2)  info[12] = 1;
 
     //Define timers for performance studies
     const int num_timers = 5;
-    mpi_timer timers[num_timers];
+    sys_timer timers[num_timers];
     string global_names[num_timers] = {"Global Time", "Final Gather", "Final Triangulation", "Initialization", "Final Bisection"};
     for(i = 0; i < num_timers; i++){
-        timers[i] = mpi_timer(global_names[i]);
+        timers[i] = sys_timer(global_names[i]);
     }
     timers[0].start(); // Global Time Timer
     timers[3].start(); // Initialization timer
-    itr_timer.reset(new mpi_timer("Cumulative Time"));
+    if(id==0)
+		itr_timer.reset(new sys_timer("Cumulative Time"));
 
     // Setup initial point set and build regions
     if(id == 0){
@@ -349,12 +356,16 @@ int main(int argc, char **argv){
             exit(1);
         }
 
-        ofstream pts_out("point_initial.dat");
+        /*timers[3].stop();
+        timers[0].stop();
+        ofstream pts_out("point_initial.dat."+itrFileName);
         for(point_itr = points.begin(); point_itr != points.end(); ++point_itr)
         {
             pts_out << (*point_itr) << endl;
         }
         pts_out.close();
+        timers[3].start();
+        timers[0].start();*/
     }
 
     // Broadcast regions, and initial point set to each processor.
@@ -381,13 +392,15 @@ int main(int argc, char **argv){
             my_regions.push_back((*region_itr));
         }
     }
-
+	if(sort_method==2)
+		buildOverlap(id, points, regions, my_regions);
 
     if(save_bisectItr && id==0)
     {
         timers[3].stop();
         initial_time = timers[3].total_time;
         itrFile.open(itrFileName.c_str());
+        itrFile.close();
         itr_timer->start();
     }
 
@@ -399,9 +412,9 @@ int main(int argc, char **argv){
             timers[3].stop();
             initial_time = timers[3].total_time;
             itrFile.open(itrFileName.c_str());
+            itrFile.close();
             itr_timer->start();
         }
-
         //if(it_bisect>0 && it_bisect<num_bisections)   max_restart=-1;             //for NMC12OptRef test, only opt on 1st and last
         //else max_restart=50;
 
@@ -463,7 +476,7 @@ int main(int argc, char **argv){
             }
 
             if(id==0)
-            cout << "LBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
+            cout << "\nLBFGS itr: num_feval |  f_val  |  g_norm  |"<< endl;
 
 
             int ret = HLBFGS(disjDistrIdx.size()*3, mem_num, &x[0], evalfunc, 0,
@@ -535,8 +548,6 @@ int main(int argc, char **argv){
                 break;
             }
         }
-        if(it_bisect==num_bisections)
-            itrFile.close();
 
         // Bisect if needed
         if(it_bisect < num_bisections)
@@ -560,7 +571,7 @@ int main(int argc, char **argv){
     // write triangles to triangles.dat
     timers[2].start(); // Final Triangulation Timer
     clearRegions(id, my_regions);
-    sortPoints(id, regions, points, sort_vor, my_regions);
+    sortPoints(id, regions, points, sort_method, my_regions);
     makeFinalTriangulations(id, flags, regions, my_regions);
     timers[2].stop();
 
@@ -593,8 +604,8 @@ int main(int argc, char **argv){
     num_avePoints = num_avePoints / regions.size();
     if(id == 0){
         cout << "\nAverage points per region: " << num_avePoints << endl;
-    }
-    */
+    }*/
+
     //Bisect all edges of all triangles to give an extra point set at the end, SaveVertices
     timers[4].start(); // Final Bisection Timer
     if(bisect_final)
@@ -609,7 +620,6 @@ int main(int argc, char **argv){
         }
     }
 
-    MPI_Finalize();
     return 0;
 }
 
